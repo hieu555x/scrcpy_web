@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WebUSB Scrcpy Controller</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #0c0c0e;
+        color: #e4e4e7;
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        width: 100vw;
+        box-sizing: border-box;
+        overflow: hidden;
+      }
+
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        width: 100%;
+        position: relative;
+      }
+
+      .setup-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        background-color: #1a1a1e;
+        padding: 24px;
+        border-radius: 16px;
+        border: 1px solid #2d2d34;
+        max-width: 320px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+      }
+
+      button {
+        background-color: #3b82f6;
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+
+      button:hover {
+        background-color: #2563eb;
+      }
+
+      button:disabled {
+        background-color: #2d2d34;
+        color: #a1a1aa;
+        cursor: not-allowed;
+      }
+
+      #status-text {
+        font-size: 0.9rem;
+        color: #a1a1aa;
+      }
+
+      #canvas-container {
+        position: relative;
+        display: none;
+        width: 100%;
+        height: 100%;
+        align-items: center;
+        justify-content: center;
+      }
+
+      canvas {
+        max-width: 95%;
+        max-height: calc(100% - 70px);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      .nav-bar {
+        position: absolute;
+        bottom: 15px;
+        display: none;
+        gap: 20px;
+        background-color: #1a1a1e;
+        padding: 8px 25px;
+        border-radius: 30px;
+        border: 1px solid #2d2d34;
+      }
+
+      .nav-btn {
+        background: none;
+        border: none;
+        color: #a1a1aa;
+        font-size: 1.4rem;
+        cursor: pointer;
+        transition:
+          color 0.2s,
+          transform 0.1s;
+      }
+
+      .nav-btn:hover {
+        color: white;
+        transform: scale(1.1);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Bảng điều khiển ban đầu -->
+      <div id="setup-panel" class="setup-panel">
+        <h3 style="margin: 0 0 10px 0">Kết Nối Android (WebUSB)</h3>
+        <p
+          style="
+            margin: 0 0 15px 0;
+            font-size: 0.85rem;
+            color: #a1a1aa;
+            line-height: 1.4;
+          "
+        >
+          Hãy đảm bảo bạn đã bật <b>Gỡ lỗi USB (USB Debugging)</b> trên thiết bị
+          Android của mình.
+        </p>
+        <button id="btn-connect">Kết Nối Điện Thoại</button>
+        <div id="status-text">Thiết bị: Chưa kết nối</div>
+      </div>
+
+      <!-- Màn hình điện thoại sau khi khởi chạy thành công -->
+      <div id="canvas-container">
+        <canvas id="video-canvas"></canvas>
+
+        <!-- Phím điều hướng hệ thống (Back, Home, Recents) -->
+        <div id="nav-bar" class="nav-bar">
+          <button class="nav-btn" id="btn-back" title="Back">⇦</button>
+          <button class="nav-btn" id="btn-home" title="Home">◯</button>
+          <button class="nav-btn" id="btn-apps" title="App Switcher">▢</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import thư viện Tango ADB & Scrcpy -->
+    <script type="module">
+      import {
+        Adb,
+        AdbDaemonTransport,
+      } from "https://esm.sh/@yume-chan/adb@2.6.3";
+      import { AdbDaemonWebUsbDeviceManager } from "https://esm.sh/@yume-chan/adb-daemon-webusb@2.3.2";
+      import AdbWebCredentialStore from "https://esm.sh/@yume-chan/adb-credential-web@2.1.0";
+      import {
+        AndroidMotionEventAction,
+        AndroidMotionEventButton,
+        ScrcpyPointerId,
+        AndroidKeyEventAction,
+        ScrcpyOptions2_1,
+      } from "https://esm.sh/@yume-chan/scrcpy@2.3.0";
+      import {
+        AdbScrcpyClient,
+        AdbScrcpyOptions2_1,
+      } from "https://esm.sh/@yume-chan/adb-scrcpy@2.3.2";
+      import {
+        WebCodecsVideoDecoder,
+        WebGLVideoFrameRenderer,
+      } from "https://esm.sh/@yume-chan/scrcpy-decoder-webcodecs@2.1.0";
+
+      const btnConnect = document.getElementById("btn-connect");
+      const setupPanel = document.getElementById("setup-panel");
+      const canvasContainer = document.getElementById("canvas-container");
+      const videoCanvas = document.getElementById("video-canvas");
+      const navBar = document.getElementById("nav-bar");
+      const statusText = document.getElementById("status-text");
+
+      let adbInstance = null;
+      let scrcpyClient = null;
+      let videoDecoder = null;
+      let isMouseDown = false;
+      let videoWidth = 0;
+      let videoHeight = 0;
+
+      // 1. Lắng nghe nhấn nút để kết nối qua cổng USB
+      btnConnect.addEventListener("click", async () => {
+        try {
+          statusText.textContent = "Đang xin quyền truy cập USB...";
+          const device =
+            await AdbDaemonWebUsbDeviceManager.BROWSER.requestDevice();
+          if (!device) {
+            statusText.textContent = "Bạn đã hủy chọn thiết bị.";
+            return;
+          }
+
+          statusText.textContent = `Đang kết nối tới: ${device.raw.productName}...`;
+          const connection = await device.connect();
+          const credentialStore = new AdbWebCredentialStore();
+
+          statusText.textContent =
+            "Xác nhận quyền gỡ lỗi trên màn hình điện thoại...";
+          const transport = await AdbDaemonTransport.authenticate({
+            serial: device.serial,
+            connection,
+            credentialStore,
+          });
+
+          adbInstance = new Adb(transport);
+          statusText.textContent =
+            "Kết nối ADB thành công! Đang khởi động gương...";
+
+          await startMirroring();
+        } catch (err) {
+          statusText.textContent = `Lỗi: ${err.message}`;
+        }
+      });
+
+      // 2. Chức năng khởi động Gương màn hình scrcpy
+      async function startMirroring() {
+        try {
+          // Tải trực tiếp file scrcpy-server.jar tương thích từ CDN
+          const serverUrl =
+            "https://unpkg.com/@yume-chan/scrcpy@2.3.0/bin/scrcpy-server.jar";
+          const response = await fetch(serverUrl);
+          if (!response.ok)
+            throw new Error("Không thể tải scrcpy-server từ CDN");
+          const jarBuffer = await response.arrayBuffer();
+
+          // Đẩy file Server vào thư mục tạm trên Android
+          await AdbScrcpyClient.pushServer(
+            adbInstance,
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(new Uint8Array(jarBuffer));
+                controller.close();
+              },
+            }),
+          );
+
+          // Thiết lập cấu hình truyền luồng scrcpy
+          const adbOptions = new AdbScrcpyOptions2_1({
+            tunnelForward: true, // Kết nối qua Port Forwarding
+            sendFrameMeta: true,
+            control: true, // Bật tính năng điều khiển
+          });
+
+          scrcpyClient = await AdbScrcpyClient.start(
+            adbInstance,
+            "/data/local/tmp/scrcpy-server.jar",
+            adbOptions,
+          );
+
+          if (scrcpyClient.videoStream) {
+            const videoStream = await scrcpyClient.videoStream;
+
+            // Khởi tạo card đồ họa WebGL và giải mã bằng WebCodecs API của trình duyệt
+            const renderer = new WebGLVideoFrameRenderer(videoCanvas);
+            videoDecoder = new WebCodecsVideoDecoder({
+              codec: videoStream.metadata.codec,
+              renderer: renderer,
+            });
+
+            // Lưu kích thước video ban đầu
+            videoWidth = videoStream.width;
+            videoHeight = videoStream.height;
+
+            // Lắng nghe thay đổi kích thước video
+            videoStream.sizeChanged(({ width, height }) => {
+              videoWidth = width;
+              videoHeight = height;
+            });
+
+            // Ẩn bảng Setup, hiện khung Canvas điện thoại
+            setupPanel.style.display = "none";
+            canvasContainer.style.display = "flex";
+            navBar.style.display = "flex";
+
+            // Pipe luồng dữ liệu video trực tiếp sang Decoder
+            videoStream.stream.pipeTo(videoDecoder.writable);
+
+            setupControls();
+          }
+        } catch (err) {
+          statusText.textContent = `Lỗi khởi động Scrcpy: ${err.message}`;
+        }
+      }
+
+      // 3. Sự kiện điều khiển chuột (Click, Drag, Touch)
+      function setupControls() {
+        if (!scrcpyClient || !scrcpyClient.controller) return;
+
+        const sendTouch = async (action, e) => {
+          if (!videoWidth || !videoHeight) return;
+
+          const rect = videoCanvas.getBoundingClientRect();
+          const x = ((e.clientX - rect.left) / rect.width) * videoWidth;
+          const y = ((e.clientY - rect.top) / rect.height) * videoHeight;
+
+          await scrcpyClient.controller.injectTouch({
+            action,
+            pointerId: ScrcpyPointerId.Finger,
+            pointerX: x,
+            pointerY: y,
+            videoWidth,
+            videoHeight,
+            pressure: 1.0,
+            actionButton: AndroidMotionEventButton.Primary,
+            buttons: AndroidMotionEventButton.Primary,
+          });
+        };
+
+        videoCanvas.addEventListener("mousedown", async (e) => {
+          isMouseDown = true;
+          await sendTouch(AndroidMotionEventAction.Down, e);
+        });
+
+        window.addEventListener("mousemove", async (e) => {
+          if (!isMouseDown) return;
+          await sendTouch(AndroidMotionEventAction.Move, e);
+        });
+
+        window.addEventListener("mouseup", async (e) => {
+          if (!isMouseDown) return;
+          isMouseDown = false;
+          await sendTouch(AndroidMotionEventAction.Up, e);
+        });
+
+        // 4. Gán hành động cho các phím điều hướng ảo phía dưới
+        document
+          .getElementById("btn-back")
+          .addEventListener("click", async () => {
+            await scrcpyClient.controller.backOrScreenOn(
+              AndroidKeyEventAction.Down,
+            );
+            await scrcpyClient.controller.backOrScreenOn(
+              AndroidKeyEventAction.Up,
+            );
+          });
+
+        document
+          .getElementById("btn-home")
+          .addEventListener("click", async () => {
+            await scrcpyClient.controller.home(AndroidKeyEventAction.Down);
+            await scrcpyClient.controller.home(AndroidKeyEventAction.Up);
+          });
+
+        document
+          .getElementById("btn-apps")
+          .addEventListener("click", async () => {
+            await scrcpyClient.controller.appSwitch(AndroidKeyEventAction.Down);
+            await scrcpyClient.controller.appSwitch(AndroidKeyEventAction.Up);
+          });
+      }
+    </script>
+  </body>
+</html>
