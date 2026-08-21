@@ -156,24 +156,26 @@
       import {
         Adb,
         AdbDaemonTransport,
-      } from "https://esm.sh/@yume-chan/adb@2.6.3";
-      import { AdbDaemonWebUsbDeviceManager } from "https://esm.sh/@yume-chan/adb-daemon-webusb@2.3.2";
-      import AdbWebCredentialStore from "https://esm.sh/@yume-chan/adb-credential-web@2.1.0";
+      } from "https://cdn.jsdelivr.net/npm/@yume-chan/adb@2.6.2/+esm";
+      import { AdbDaemonWebUsbDeviceManager } from "https://cdn.jsdelivr.net/npm/@yume-chan/adb-daemon-webusb@2.3.2/+esm";
+      import AdbWebCredentialStore from "https://cdn.jsdelivr.net/npm/@yume-chan/adb-credential-web@2.1.0/+esm";
       import {
         AndroidMotionEventAction,
         AndroidMotionEventButton,
         ScrcpyPointerId,
         AndroidKeyEventAction,
         ScrcpyOptions2_1,
-      } from "https://esm.sh/@yume-chan/scrcpy@2.3.0";
+      } from "https://cdn.jsdelivr.net/npm/@yume-chan/scrcpy@2.3.0/+esm";
       import {
         AdbScrcpyClient,
-        AdbScrcpyOptions2_1,
-      } from "https://esm.sh/@yume-chan/adb-scrcpy@2.3.2";
+        AdbScrcpyOptions3_3_3,
+      } from "https://cdn.jsdelivr.net/npm/@yume-chan/adb-scrcpy@2.3.2/+esm";
       import {
         WebCodecsVideoDecoder,
         WebGLVideoFrameRenderer,
-      } from "https://esm.sh/@yume-chan/scrcpy-decoder-webcodecs@2.1.0";
+        BitmapVideoFrameRenderer,
+      } from "https://cdn.jsdelivr.net/npm/@yume-chan/scrcpy-decoder-webcodecs@2.1.0/+esm";
+      import { DefaultServerPath } from "https://cdn.jsdelivr.net/npm/@yume-chan/scrcpy@2.3.0/+esm";
 
       const btnConnect = document.getElementById("btn-connect");
       const setupPanel = document.getElementById("setup-panel");
@@ -225,15 +227,14 @@
       // 2. Chức năng khởi động Gương màn hình scrcpy
       async function startMirroring() {
         try {
-          // Tải trực tiếp file scrcpy-server.jar tương thích từ CDN
-          const serverUrl =
-            "https://unpkg.com/@yume-chan/scrcpy@2.3.0/bin/scrcpy-server.jar";
+          statusText.textContent = "Đang khởi động gương: 1/5 - Đang tải tệp scrcpy-server từ bộ nhớ cục bộ...";
+          const serverUrl = "scrcpy-server.jar";
           const response = await fetch(serverUrl);
           if (!response.ok)
-            throw new Error("Không thể tải scrcpy-server từ CDN");
+            throw new Error("Không thể tải scrcpy-server từ bộ nhớ cục bộ");
           const jarBuffer = await response.arrayBuffer();
 
-          // Đẩy file Server vào thư mục tạm trên Android
+          statusText.textContent = "Đang khởi động gương: 2/5 - Đang đẩy tệp scrcpy-server vào điện thoại...";
           await AdbScrcpyClient.pushServer(
             adbInstance,
             new ReadableStream({
@@ -242,53 +243,112 @@
                 controller.close();
               },
             }),
+            DefaultServerPath,
           );
 
-          // Thiết lập cấu hình truyền luồng scrcpy
-          const adbOptions = new AdbScrcpyOptions2_1({
-            tunnelForward: true, // Kết nối qua Port Forwarding
-            sendFrameMeta: true,
-            control: true, // Bật tính năng điều khiển
-          });
+          statusText.textContent = "Đang khởi động gương: 3/5 - Đang thiết lập cấu hình kết nối...";
+          const adbOptions = new AdbScrcpyOptions3_3_3(
+            {
+              tunnelForward: true,
+              sendFrameMeta: true,
+              control: true,
+              audio: false,
+            },
+            {
+              version: "3.3.3",
+            },
+          );
 
+          statusText.textContent = "Đang khởi động gương: 4/5 - Đang kết nối và khởi chạy máy chủ trên điện thoại...";
           scrcpyClient = await AdbScrcpyClient.start(
             adbInstance,
-            "/data/local/tmp/scrcpy-server.jar",
+            DefaultServerPath,
             adbOptions,
           );
 
-          if (scrcpyClient.videoStream) {
-            const videoStream = await scrcpyClient.videoStream;
-
-            // Khởi tạo card đồ họa WebGL và giải mã bằng WebCodecs API của trình duyệt
-            const renderer = new WebGLVideoFrameRenderer(videoCanvas);
-            videoDecoder = new WebCodecsVideoDecoder({
-              codec: videoStream.metadata.codec,
-              renderer: renderer,
-            });
-
-            // Lưu kích thước video ban đầu
-            videoWidth = videoStream.width;
-            videoHeight = videoStream.height;
-
-            // Lắng nghe thay đổi kích thước video
-            videoStream.sizeChanged(({ width, height }) => {
-              videoWidth = width;
-              videoHeight = height;
-            });
-
-            // Ẩn bảng Setup, hiện khung Canvas điện thoại
-            setupPanel.style.display = "none";
-            canvasContainer.style.display = "flex";
-            navBar.style.display = "flex";
-
-            // Pipe luồng dữ liệu video trực tiếp sang Decoder
-            videoStream.stream.pipeTo(videoDecoder.writable);
-
-            setupControls();
+          statusText.textContent = "Đang khởi động gương: 5/5 - Đang chuẩn bị luồng hiển thị video...";
+          if (!scrcpyClient.videoStream) {
+            console.error("videoStream is undefined - server may not support video");
+            throw new Error("Không tìm thấy luồng truyền video từ thiết bị.");
           }
+
+          scrcpyClient.exited.then(() => {
+            console.warn("Server exited while waiting for video stream");
+            statusText.textContent = "Máy chủ scrcpy đã dừng hoạt động.";
+          }).catch((e) => {
+            console.warn("Server exited with error:", e);
+          });
+
+          (async () => {
+            if (!scrcpyClient.output) return;
+            const reader = scrcpyClient.output.getReader();
+            try {
+              while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                if (value) {
+                  console.log("[Server]", value);
+                }
+              }
+            } catch (e) {
+              console.error("Server output error:", e);
+            }
+          })();
+
+          const videoStream = await Promise.race([
+            scrcpyClient.videoStream,
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error("Timeout: videoStream không phản hồi sau 15s. Kiểm tra phiên bản scrcpy-server.jar có tương thích không.")), 15000)
+            ),
+          ]);
+          console.log("Video stream resolved, metadata:", videoStream.metadata);
+
+          let renderer;
+          console.log("WebGL supported:", WebGLVideoFrameRenderer.isSupported);
+          console.log("WebCodecs supported:", WebCodecsVideoDecoder.isSupported);
+          if (WebGLVideoFrameRenderer.isSupported) {
+            renderer = new WebGLVideoFrameRenderer(videoCanvas);
+          } else {
+            console.warn("WebGL không được hỗ trợ, sử dụng Bitmap renderer");
+            renderer = new BitmapVideoFrameRenderer(videoCanvas);
+          }
+
+          videoDecoder = new WebCodecsVideoDecoder({
+            codec: videoStream.metadata.codec,
+            renderer: renderer,
+          });
+
+          videoWidth = videoStream.width || videoStream.metadata.width || 0;
+          videoHeight = videoStream.height || videoStream.metadata.height || 0;
+
+          videoDecoder.sizeChanged(({ width, height }) => {
+            videoWidth = width;
+            videoHeight = height;
+            renderer.setSize(width, height);
+          });
+
+          if (videoWidth && videoHeight) {
+            renderer.setSize(videoWidth, videoHeight);
+          }
+
+          setupPanel.style.display = "none";
+          canvasContainer.style.display = "flex";
+          navBar.style.display = "flex";
+
+          videoStream.stream.pipeTo(videoDecoder.writable).catch((e) => {
+            console.error("Lỗi pipe video stream:", e);
+            statusText.textContent = `Lỗi luồng video: ${e.message}`;
+          });
+
+          setupControls();
         } catch (err) {
-          statusText.textContent = `Lỗi khởi động Scrcpy: ${err.message}`;
+          console.error("Lỗi khởi động Scrcpy:", err);
+          let errorMsg = `Lỗi khởi động Scrcpy: ${err.message}`;
+          if (err.output && Array.isArray(err.output) && err.output.length > 0) {
+            errorMsg += `\nServer output:\n${err.output.join("\n")}`;
+            console.error("Server output:", err.output);
+          }
+          statusText.textContent = errorMsg;
         }
       }
 
