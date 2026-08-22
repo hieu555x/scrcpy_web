@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
@@ -71,6 +71,11 @@
       #status-text {
         font-size: 0.9rem;
         color: #a1a1aa;
+        white-space: pre-line;
+      }
+
+      .status-error {
+        color: #f87171 !important;
       }
 
       #canvas-container {
@@ -84,37 +89,33 @@
 
       canvas {
         max-width: 95%;
-        max-height: calc(100% - 70px);
+        max-height: calc(100% - 24px);
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
         border-radius: 8px;
         cursor: pointer;
+        touch-action: none;
       }
 
-      .nav-bar {
+      .disconnect-btn {
         position: absolute;
-        bottom: 15px;
+        top: 12px;
+        right: 16px;
+        z-index: 10;
         display: none;
-        gap: 20px;
-        background-color: #1a1a1e;
-        padding: 8px 25px;
-        border-radius: 30px;
-        border: 1px solid #2d2d34;
-      }
-
-      .nav-btn {
-        background: none;
-        border: none;
-        color: #a1a1aa;
-        font-size: 1.4rem;
-        cursor: pointer;
-        transition:
-          color 0.2s,
-          transform 0.1s;
-      }
-
-      .nav-btn:hover {
+        gap: 6px;
+        align-items: center;
+        background-color: rgba(220, 38, 38, 0.85);
         color: white;
-        transform: scale(1.1);
+        border: none;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .disconnect-btn:hover {
+        background-color: #dc2626;
       }
     </style>
   </head>
@@ -140,101 +141,216 @@
 
       <!-- Màn hình điện thoại sau khi khởi chạy thành công -->
       <div id="canvas-container">
+        <button id="btn-disconnect" class="disconnect-btn" title="Ngắt kết nối">
+          ✕ Ngắt kết nối
+        </button>
         <canvas id="video-canvas"></canvas>
-
-        <!-- Phím điều hướng hệ thống (Back, Home, Recents) -->
-        <div id="nav-bar" class="nav-bar">
-          <button class="nav-btn" id="btn-back" title="Back">⇦</button>
-          <button class="nav-btn" id="btn-home" title="Home">◯</button>
-          <button class="nav-btn" id="btn-apps" title="App Switcher">▢</button>
-        </div>
       </div>
     </div>
 
-    <!-- Import thư viện Tango ADB & Scrcpy -->
+    <!-- Thư viện Tango ADB & Scrcpy được bundle cục bộ (build bằng tools/jsbundle) -->
     <script type="module">
       import {
         Adb,
         AdbDaemonTransport,
-      } from "https://cdn.jsdelivr.net/npm/@yume-chan/adb@2.6.2/+esm";
-      import { AdbDaemonWebUsbDeviceManager } from "https://cdn.jsdelivr.net/npm/@yume-chan/adb-daemon-webusb@2.3.2/+esm";
-      import AdbWebCredentialStore from "https://cdn.jsdelivr.net/npm/@yume-chan/adb-credential-web@2.1.0/+esm";
-      import {
+        AdbDaemonWebUsbDeviceManager,
+        AdbWebCredentialStore,
+        AndroidKeyEventAction,
+        AndroidKeyCode,
         AndroidMotionEventAction,
         AndroidMotionEventButton,
+        DefaultServerPath,
+        ScrcpyAudioCodec,
         ScrcpyPointerId,
-        AndroidKeyEventAction,
-        ScrcpyOptions2_1,
-      } from "https://cdn.jsdelivr.net/npm/@yume-chan/scrcpy@2.3.0/+esm";
-      import {
         AdbScrcpyClient,
         AdbScrcpyOptions3_3_3,
-      } from "https://cdn.jsdelivr.net/npm/@yume-chan/adb-scrcpy@2.3.2/+esm";
-      import {
         WebCodecsVideoDecoder,
         WebGLVideoFrameRenderer,
         BitmapVideoFrameRenderer,
-      } from "https://cdn.jsdelivr.net/npm/@yume-chan/scrcpy-decoder-webcodecs@2.1.0/+esm";
-      import { DefaultServerPath } from "https://cdn.jsdelivr.net/npm/@yume-chan/scrcpy@2.3.0/+esm";
+      } from "./vendor/scrcpy_bundle.js";
 
       const btnConnect = document.getElementById("btn-connect");
       const setupPanel = document.getElementById("setup-panel");
       const canvasContainer = document.getElementById("canvas-container");
       const videoCanvas = document.getElementById("video-canvas");
-      const navBar = document.getElementById("nav-bar");
       const statusText = document.getElementById("status-text");
+      const btnDisconnect = document.getElementById("btn-disconnect");
 
       let adbInstance = null;
       let scrcpyClient = null;
       let videoDecoder = null;
-      let isMouseDown = false;
+      let usbDevice = null;
+      let usbConnection = null;
+      let isPointerDown = false;
+      let isCleaningUp = false;
+      let controlsAttached = false;
       let videoWidth = 0;
       let videoHeight = 0;
+
+      // CHẨN ĐOÁN: bắt MỌI pointerdown trong iframe từ pha capture,
+      // giúp phân biệt "sự kiện không vào được iframe" vs "sai target".
+      document.addEventListener(
+        "pointerdown",
+        (e) => {
+          const t = e.target;
+          console.warn(
+            "[frame] pointerdown →",
+            t && (t.id || t.tagName),
+          );
+        },
+        true,
+      );
+
+      // Báo trạng thái về Flutter (window cha) — same-origin nên dùng origin cụ thể.
+      function postState(state) {
+        try {
+          if (window.parent !== window) {
+            window.parent.postMessage(
+              { type: "scrcpyState", state },
+              window.location.origin,
+            );
+          }
+        } catch (e) {
+          console.warn("postState failed:", e);
+        }
+      }
+
+      function setStatus(text, isError = false) {
+        statusText.textContent = text;
+        statusText.classList.toggle("status-error", isError);
+      }
+
+      // Hiển thị lại panel setup kèm thông báo lỗi (luôn nhìn thấy được).
+      function showError(message) {
+        setupPanel.style.display = "flex";
+        canvasContainer.style.display = "none";
+        btnDisconnect.style.display = "none";
+        setStatus(message, true);
+      }
 
       // 1. Lắng nghe nhấn nút để kết nối qua cổng USB
       btnConnect.addEventListener("click", async () => {
         try {
-          statusText.textContent = "Đang xin quyền truy cập USB...";
+          btnConnect.disabled = true;
+          postState("connecting");
+          setStatus("Đang xin quyền truy cập USB...");
           const device =
             await AdbDaemonWebUsbDeviceManager.BROWSER.requestDevice();
+          console.warn("[connect] requestDevice xong:", !!device);
           if (!device) {
-            statusText.textContent = "Bạn đã hủy chọn thiết bị.";
+            setStatus("Bạn đã hủy chọn thiết bị.");
             return;
           }
+          usbDevice = device;
 
-          statusText.textContent = `Đang kết nối tới: ${device.raw.productName}...`;
-          const connection = await device.connect();
+          setStatus(
+            `Đang kết nối tới: ${device.raw.productName} (serial: ${device.serial})...`,
+          );
+
+          // Ép reset thiết bị để điện thoại dọn phiên adbd cũ còn treo —
+          // khi ngắt bằng phần mềm, dây vẫn cắm nên điện thoại không hề biết.
+          // Tango trả về wrapper; USBDevice thật nằm ở .raw.
+          try {
+            const raw = device.raw ?? device;
+            if (typeof raw.reset === "function") {
+              await raw.reset();
+              console.warn("[connect] device.reset xong");
+            } else {
+              console.warn("[connect] device.reset không khả dụng — bỏ qua");
+            }
+          } catch (e) {
+            console.warn("[connect] device.reset bỏ qua:", e.message);
+          }
+
           const credentialStore = new AdbWebCredentialStore();
 
-          statusText.textContent =
-            "Xác nhận quyền gỡ lỗi trên màn hình điện thoại...";
-          const transport = await AdbDaemonTransport.authenticate({
-            serial: device.serial,
-            connection,
-            credentialStore,
-          });
+          // Xác thực ADB — thử tối đa 3 lần vì adbd có thể cần thời gian
+          // để dọn phiên cũ sau khi ngắt kết nối bằng phần mềm.
+          let transport = null;
+          let usbBusy = false;
+          for (let attempt = 1; attempt <= 3 && !transport; attempt++) {
+            if (attempt > 1) {
+              setStatus(
+                `Điện thoại chưa phản hồi (${attempt}/3)... kiểm tra màn hình điện thoại nếu có hộp thoại gỡ lỗi`,
+              );
+              await new Promise((r) => setTimeout(r, 5000));
+            }
+            try {
+              usbConnection = await device.connect();
+              console.warn(`[connect] USB connect xong (lần ${attempt})`);
+              transport = await Promise.race([
+                AdbDaemonTransport.authenticate({
+                  serial: device.serial,
+                  connection: usbConnection,
+                  credentialStore,
+                }),
+                new Promise((_, reject) =>
+                  setTimeout(() => reject(new Error("authenticate timeout")), 12000),
+                ),
+              ]);
+              console.warn("[connect] tiếp tục sau authenticate");
+            } catch (err) {
+              console.warn(`[connect] authenticate thất bại lần ${attempt}:`, err);
+              // Phát hiện trường hợp tiến trình adb.exe trên PC đang chiếm USB
+              if (/claimInterface|in use|in used/i.test(String(err))) {
+                usbBusy = true;
+              }
+              try {
+                await usbConnection?.close?.();
+              } catch (_) {}
+              usbConnection = null;
+            }
+          }
+          if (!transport) {
+            throw new Error(
+              usbBusy
+                ? "Một chương trình khác trên máy đang chiếm thiết bị USB " +
+                  "(thường là adb server do Android Studio / VS Code / scrcpy desktop khởi động).\n" +
+                  "Chạy lệnh:  adb kill-server   — hoặc đóng Android Studio rồi thử lại."
+                : "Điện thoại không phản hồi bắt tay ADB sau 3 lần thử.\n" +
+                  "Hãy rút cáp USB ra rồi cắm lại (hoặc tắt/bật Gỡ lỗi USB trên điện thoại) và thử lần nữa.",
+            );
+          }
 
           adbInstance = new Adb(transport);
-          statusText.textContent =
-            "Kết nối ADB thành công! Đang khởi động gương...";
+          setStatus("Kết nối ADB thành công! Đang khởi động gương...");
 
           await startMirroring();
         } catch (err) {
-          statusText.textContent = `Lỗi: ${err.message}`;
+          console.error("Lỗi kết nối:", err);
+          showError(`Lỗi kết nối: ${err.message}`);
+          postState("error");
+        } finally {
+          btnConnect.disabled = false;
         }
       });
 
-      // 2. Chức năng khởi động Gương màn hình scrcpy
+      // 2. Khởi động scrcpy mirroring
       async function startMirroring() {
         try {
-          statusText.textContent = "Đang khởi động gương: 1/5 - Đang tải tệp scrcpy-server từ bộ nhớ cục bộ...";
+          // Bước 0: kill server cũ còn sót lại (tránh xung đột cổng)
+          setStatus("Đang dọn tiến trình server cũ (nếu có)...");
+          try {
+            await adbInstance.subprocess.noneProtocol.spawnWaitText([
+              "pkill",
+              "-f",
+              "scrcpy-server",
+            ]);
+            await new Promise((r) => setTimeout(r, 300));
+          } catch (_) {
+            // pkill trả mã khác 0 khi không có process nào — bình thường
+          }
+
+          setStatus(
+            "Đang khởi động gương: 1/5 - Đang tải tệp scrcpy-server...",
+          );
           const serverUrl = "scrcpy-server.jar";
           const response = await fetch(serverUrl);
           if (!response.ok)
             throw new Error("Không thể tải scrcpy-server từ bộ nhớ cục bộ");
           const jarBuffer = await response.arrayBuffer();
 
-          statusText.textContent = "Đang khởi động gương: 2/5 - Đang đẩy tệp scrcpy-server vào điện thoại...";
+          setStatus("Đang khởi động gương: 2/5 - Đang đẩy tệp vào điện thoại...");
           await AdbScrcpyClient.pushServer(
             adbInstance,
             new ReadableStream({
@@ -246,38 +362,35 @@
             DefaultServerPath,
           );
 
-          statusText.textContent = "Đang khởi động gương: 3/5 - Đang thiết lập cấu hình kết nối...";
+          setStatus("Đang khởi động gương: 3/5 - Thiết lập cấu hình...");
           const adbOptions = new AdbScrcpyOptions3_3_3(
             {
               tunnelForward: true,
               sendFrameMeta: true,
               control: true,
-              audio: false,
+              audio: true,
             },
             {
               version: "3.3.3",
             },
           );
 
-          statusText.textContent = "Đang khởi động gương: 4/5 - Đang kết nối và khởi chạy máy chủ trên điện thoại...";
+          setStatus(
+            "Đang khởi động gương: 4/5 - Khởi chạy máy chủ trên điện thoại...",
+          );
           scrcpyClient = await AdbScrcpyClient.start(
             adbInstance,
             DefaultServerPath,
             adbOptions,
           );
 
-          statusText.textContent = "Đang khởi động gương: 5/5 - Đang chuẩn bị luồng hiển thị video...";
-          if (!scrcpyClient.videoStream) {
-            console.error("videoStream is undefined - server may not support video");
-            throw new Error("Không tìm thấy luồng truyền video từ thiết bị.");
-          }
-
-          scrcpyClient.exited.then(() => {
-            console.warn("Server exited while waiting for video stream");
-            statusText.textContent = "Máy chủ scrcpy đã dừng hoạt động.";
-          }).catch((e) => {
-            console.warn("Server exited with error:", e);
-          });
+          // Khi server dừng bất ngờ: dọn dẹp và quay lại màn hình kết nối.
+          scrcpyClient.exited
+            .then(() => {
+              console.warn("Server exited");
+              if (!isCleaningUp) cleanup("Máy chủ scrcpy đã dừng hoạt động.");
+            })
+            .catch((e) => console.warn("Server exited with error:", e));
 
           (async () => {
             if (!scrcpyClient.output) return;
@@ -286,26 +399,55 @@
               while (true) {
                 const { value, done } = await reader.read();
                 if (done) break;
-                if (value) {
-                  console.log("[Server]", value);
-                }
+                if (value) console.log("[Server]", value);
               }
             } catch (e) {
               console.error("Server output error:", e);
             }
           })();
 
+          setStatus("Đang khởi động gương: 5/5 - Chuẩn bị luồng video...");
+          console.log(
+            "[debug] client đã khởi động — controller:",
+            !!scrcpyClient.controller,
+            "videoStream:",
+            !!scrcpyClient.videoStream,
+            "output:",
+            !!scrcpyClient.output,
+          );
+          if (scrcpyClient.controller) {
+            console.warn(
+              "[debug] controller methods:",
+              Object.getOwnPropertyNames(
+                Object.getPrototypeOf(scrcpyClient.controller),
+              ).join(", "),
+            );
+          }
+
+          if (!scrcpyClient.videoStream) {
+            throw new Error("Không tìm thấy luồng truyền video từ thiết bị.");
+          }
+
+          // Race với timeout nhưng luôn clear timer để tránh unhandled rejection.
+          let timeoutId;
           const videoStream = await Promise.race([
             scrcpyClient.videoStream,
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error("Timeout: videoStream không phản hồi sau 15s. Kiểm tra phiên bản scrcpy-server.jar có tương thích không.")), 15000)
-            ),
-          ]);
+            new Promise((_, reject) => {
+              timeoutId = setTimeout(
+                () =>
+                  reject(
+                    new Error(
+                      "Timeout: videoStream không phản hồi sau 15s. " +
+                        "Kiểm tra phiên bản scrcpy-server.jar có tương thích không.",
+                    ),
+                  ),
+                15000,
+              );
+            }),
+          ]).finally(() => clearTimeout(timeoutId));
           console.log("Video stream resolved, metadata:", videoStream.metadata);
 
           let renderer;
-          console.log("WebGL supported:", WebGLVideoFrameRenderer.isSupported);
-          console.log("WebCodecs supported:", WebCodecsVideoDecoder.isSupported);
           if (WebGLVideoFrameRenderer.isSupported) {
             renderer = new WebGLVideoFrameRenderer(videoCanvas);
           } else {
@@ -320,6 +462,12 @@
 
           videoWidth = videoStream.width || videoStream.metadata.width || 0;
           videoHeight = videoStream.height || videoStream.metadata.height || 0;
+          console.warn(
+            "[debug] kích thước video ban đầu:",
+            videoWidth,
+            "x",
+            videoHeight,
+          );
 
           videoDecoder.sizeChanged(({ width, height }) => {
             videoWidth = width;
@@ -333,14 +481,19 @@
 
           setupPanel.style.display = "none";
           canvasContainer.style.display = "flex";
-          navBar.style.display = "flex";
+          btnDisconnect.style.display = "inline-flex";
 
           videoStream.stream.pipeTo(videoDecoder.writable).catch((e) => {
             console.error("Lỗi pipe video stream:", e);
-            statusText.textContent = `Lỗi luồng video: ${e.message}`;
+            cleanup(`Lỗi luồng video: ${e.message}`);
+            postState("error");
           });
 
           setupControls();
+          postState("connected");
+
+          // Âm thanh chạy nền song song video
+          startAudio();
         } catch (err) {
           console.error("Lỗi khởi động Scrcpy:", err);
           let errorMsg = `Lỗi khởi động Scrcpy: ${err.message}`;
@@ -348,76 +501,512 @@
             errorMsg += `\nServer output:\n${err.output.join("\n")}`;
             console.error("Server output:", err.output);
           }
-          statusText.textContent = errorMsg;
+          showError(errorMsg);
+          postState("error");
         }
       }
 
-      // 3. Sự kiện điều khiển chuột (Click, Drag, Touch)
-      function setupControls() {
-        if (!scrcpyClient || !scrcpyClient.controller) return;
+      // Dọn dẹp tài nguyên và đưa UI về trạng thái ban đầu.
+      // Mỗi bước close đều race với timeout để không bao giờ treo,
+      // UI được reset NGAY để người dùng có thể kết nối lại.
+      async function cleanup(reason) {
+        if (isCleaningUp) return;
+        isCleaningUp = true;
+        const client = scrcpyClient;
+        scrcpyClient = null;
+        videoDecoder = null;
 
-        const sendTouch = async (action, e) => {
-          if (!videoWidth || !videoHeight) return;
+        // Reset UI trước để không kẹt người dùng
+        canvasContainer.style.display = "none";
+        btnDisconnect.style.display = "none";
+        setupPanel.style.display = "flex";
 
-          const rect = videoCanvas.getBoundingClientRect();
-          const x = ((e.clientX - rect.left) / rect.width) * videoWidth;
-          const y = ((e.clientY - rect.top) / rect.height) * videoHeight;
-
-          await scrcpyClient.controller.injectTouch({
-            action,
-            pointerId: ScrcpyPointerId.Finger,
-            pointerX: x,
-            pointerY: y,
-            videoWidth,
-            videoHeight,
-            pressure: 1.0,
-            actionButton: AndroidMotionEventButton.Primary,
-            buttons: AndroidMotionEventButton.Primary,
-          });
+        const step = async (label, fn) => {
+          try {
+            await Promise.race([
+              Promise.resolve(fn()),
+              new Promise((r) => setTimeout(r, 3000)),
+            ]);
+            console.warn("[cleanup]", label, "xong");
+          } catch (e) {
+            console.warn("[cleanup]", label, "lỗi:", e);
+          }
         };
 
-        videoCanvas.addEventListener("mousedown", async (e) => {
-          isMouseDown = true;
+        await step("client.close", () => client?.close?.());
+
+        // Kill server mồ côi trên điện thoại (cần làm TRƯỚC khi đóng USB)
+        if (adbInstance) {
+          await step("kill server cũ", () =>
+            adbInstance.subprocess.noneProtocol.spawnWaitText([
+              "pkill",
+              "-f",
+              "scrcpy-server",
+            ]),
+          );
+        }
+
+        // Đóng kết nối ADB tường minh để adbd trên máy nhận ra phiên kết thúc
+        await step("adb connection.close", () => usbConnection?.close?.());
+        await step("device.close", () => usbDevice?.close?.());
+        adbInstance = null;
+        usbDevice = null;
+        usbConnection = null;
+
+        if (reason) {
+          showError(reason);
+          postState("error");
+        } else {
+          setStatus("Thiết bị: Chưa kết nối");
+          postState("disconnected");
+        }
+        isCleaningUp = false;
+      }
+
+      // 3. Điều khiển chuột/cảm ứng (Click, Drag, Touch) — dùng Pointer Events
+      function clampCoord(value, max) {
+        return Math.min(Math.max(value, 0), max);
+      }
+
+      function setupControls() {
+        if (!scrcpyClient || !scrcpyClient.controller) {
+          console.warn(
+            "[controls] KHÔNG có controller — control protocol chưa được bật?",
+          );
+          return;
+        }
+        console.warn("[controls] sẵn sàng");
+
+        // Chỉ gắn listener MỘT lần duy nhất — nếu không sẽ nhân đôi
+        // sau mỗi lần kết nối lại (1 click = N lần injectTouch).
+        if (controlsAttached) return;
+        controlsAttached = true;
+
+        const sendTouch = async (action, e) => {
+          if (!videoWidth || !videoHeight) {
+            console.warn("[touch] bỏ qua: chưa có kích thước video", videoWidth, videoHeight);
+            return;
+          }
+          const controller = scrcpyClient?.controller;
+          if (!controller) {
+            console.warn("[touch] bỏ qua: không có controller");
+            return;
+          }
+
+          const rect = videoCanvas.getBoundingClientRect();
+          const x = clampCoord(
+            ((e.clientX - rect.left) / rect.width) * videoWidth,
+            videoWidth,
+          );
+          const y = clampCoord(
+            ((e.clientY - rect.top) / rect.height) * videoHeight,
+            videoHeight,
+          );
+
+          try {
+            const t0 = performance.now();
+            const SENTINEL = Symbol("timeout");
+            const p = controller.injectTouch({
+              action,
+              pointerId: ScrcpyPointerId.Finger,
+              pointerX: x,
+              pointerY: y,
+              videoWidth,
+              videoHeight,
+              pressure: 1.0,
+              actionButton: AndroidMotionEventButton.Primary,
+              buttons: AndroidMotionEventButton.Primary,
+            });
+            const result = await Promise.race([
+              p.then(
+                () => "ok",
+                (err) => {
+                  throw err;
+                },
+              ),
+              new Promise((r) => setTimeout(() => r(SENTINEL), 5000)),
+            ]);
+            if (result === SENTINEL) {
+              console.error(
+                `[touch] injectTouch TREO >5000ms (x:${x.toFixed(0)}, y:${y.toFixed(0)}) — kênh control không phản hồi!`,
+              );
+            } else {
+              console.warn(
+                `[touch] injectTouch OK sau ${(performance.now() - t0).toFixed(0)}ms — action:`,
+                action,
+                "x:",
+                x.toFixed(0),
+                "y:",
+                y.toFixed(0),
+              );
+            }
+          } catch (err) {
+            console.error("injectTouch failed:", err);
+          }
+        };
+
+        videoCanvas.addEventListener("pointerdown", async (e) => {
+          e.preventDefault();
+          // Giống scrcpy desktop: chuột phải = Back, chuột giữa = Home
+          if (e.button === 2) {
+            await sendNavKey("back");
+            return;
+          }
+          if (e.button === 1) {
+            await sendNavKey("home");
+            return;
+          }
+          isPointerDown = true;
+          console.warn(
+            "[touch] pointerdown trên canvas — pointerType:",
+            e.pointerType,
+          );
           await sendTouch(AndroidMotionEventAction.Down, e);
         });
 
-        window.addEventListener("mousemove", async (e) => {
-          if (!isMouseDown) return;
+        // Chặn menu chuột phải của trình duyệt trên canvas
+        videoCanvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+        // Cuộn chuột → injectScroll (giống scrcpy desktop)
+        videoCanvas.addEventListener(
+          "wheel",
+          async (e) => {
+            e.preventDefault();
+            const controller = scrcpyClient?.controller;
+            if (!controller || !videoWidth || !videoHeight) return;
+
+            const rect = videoCanvas.getBoundingClientRect();
+            const x = clampCoord(
+              ((e.clientX - rect.left) / rect.width) * videoWidth,
+              videoWidth,
+            );
+            const y = clampCoord(
+              ((e.clientY - rect.top) / rect.height) * videoHeight,
+              videoHeight,
+            );
+            // deltaMode pixel: 1 notch ≈ 100px; giới hạn ±5 notch/lần
+            // scrcpy protocol dùng dấu ngược với deltaY của trình duyệt
+            const scrollX = Math.max(-5, Math.min(5, -e.deltaX / 100));
+            const scrollY = Math.max(-5, Math.min(5, -e.deltaY / 100));
+            if (!scrollX && !scrollY) return;
+
+            try {
+              await controller.injectScroll({
+                pointerX: x,
+                pointerY: y,
+                videoWidth,
+                videoHeight,
+                scrollX,
+                scrollY,
+                buttons: AndroidMotionEventButton.None,
+              });
+            } catch (err) {
+              console.error("[scroll] injectScroll failed:", err);
+            }
+          },
+          { passive: false },
+        );
+
+        window.addEventListener("pointermove", async (e) => {
+          if (!isPointerDown) return;
           await sendTouch(AndroidMotionEventAction.Move, e);
         });
 
-        window.addEventListener("mouseup", async (e) => {
-          if (!isMouseDown) return;
-          isMouseDown = false;
+        window.addEventListener("pointerup", async (e) => {
+          if (!isPointerDown) return;
+          isPointerDown = false;
           await sendTouch(AndroidMotionEventAction.Up, e);
         });
 
-        // 4. Gán hành động cho các phím điều hướng ảo phía dưới
-        document
-          .getElementById("btn-back")
-          .addEventListener("click", async () => {
-            await scrcpyClient.controller.backOrScreenOn(
-              AndroidKeyEventAction.Down,
-            );
-            await scrcpyClient.controller.backOrScreenOn(
-              AndroidKeyEventAction.Up,
-            );
-          });
+        window.addEventListener("pointercancel", async (e) => {
+          if (!isPointerDown) return;
+          isPointerDown = false;
+          await sendTouch(AndroidMotionEventAction.Up, e);
+        });
 
-        document
-          .getElementById("btn-home")
-          .addEventListener("click", async () => {
-            await scrcpyClient.controller.home(AndroidKeyEventAction.Down);
-            await scrcpyClient.controller.home(AndroidKeyEventAction.Up);
-          });
-
-        document
-          .getElementById("btn-apps")
-          .addEventListener("click", async () => {
-            await scrcpyClient.controller.appSwitch(AndroidKeyEventAction.Down);
-            await scrcpyClient.controller.appSwitch(AndroidKeyEventAction.Up);
-          });
+        setupKeyboard();
       }
+
+      // 5. Chuyển tiếp bàn phím PC → thiết bị Android.
+      const KEY_MAP = {
+        Backspace: AndroidKeyCode.Backspace,
+        Tab: AndroidKeyCode.Tab,
+        Enter: AndroidKeyCode.Enter,
+        Escape: AndroidKeyCode.AndroidBack, // Esc = Back như scrcpy desktop
+        ArrowUp: AndroidKeyCode.ArrowUp,
+        ArrowDown: AndroidKeyCode.ArrowDown,
+        ArrowLeft: AndroidKeyCode.ArrowLeft,
+        ArrowRight: AndroidKeyCode.ArrowRight,
+        PageUp: AndroidKeyCode.PageUp,
+        PageDown: AndroidKeyCode.PageDown,
+        Insert: AndroidKeyCode.Insert,
+        Delete: AndroidKeyCode.Delete,
+        Home: AndroidKeyCode.Home, // MOVE_HOME — điều hướng con trỏ văn bản
+        End: AndroidKeyCode.End,
+      };
+
+      // 6. Âm thanh: giải mã bằng WebCodecs native + phát qua AudioContext.
+      let audioContext = null;
+      let audioDecoder = null;
+      let nextAudioTime = 0;
+
+      function ensureAudioContext() {
+        if (!audioContext) {
+          audioContext = new AudioContext();
+        }
+        if (audioContext.state === "suspended") {
+          audioContext.resume().catch(() => {});
+        }
+        return audioContext;
+      }
+
+      function playAudioData(audioData) {
+        try {
+          const ctx = ensureAudioContext();
+          const buffer = ctx.createBuffer(
+            audioData.numberOfChannels,
+            audioData.numberOfFrames,
+            audioData.sampleRate,
+          );
+          for (let ch = 0; ch < audioData.numberOfChannels; ch++) {
+            const plane = new Float32Array(audioData.numberOfFrames);
+            audioData.copyTo(plane, { planeIndex: ch, format: "f32-planar" });
+            buffer.copyToChannel(plane, ch);
+          }
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          const now = ctx.currentTime;
+          if (nextAudioTime < now + 0.05) nextAudioTime = now + 0.05;
+          source.start(nextAudioTime);
+          nextAudioTime += buffer.duration;
+        } finally {
+          audioData.close();
+        }
+      }
+
+      // scrcpy không gửi OpusHead nhưng bộ giải mã Opus của trình duyệt
+      // bắt buộc cần description này — tự sinh theo RFC 7845 §5.1.
+      function buildOpusDescription() {
+        const bytes = new Uint8Array(19);
+        const view = new DataView(bytes.buffer);
+        bytes.set([0x4f, 0x70, 0x75, 0x73, 0x48, 0x65, 0x61, 0x64]); // "OpusHead"
+        view.setUint8(8, 1);           // version
+        view.setUint8(9, 2);           // số kênh
+        view.setUint16(10, 0, true);   // pre-skip
+        view.setUint32(12, 48000, true); // tần số mẫu đầu vào
+        view.setInt16(16, 0, true);    // output gain
+        view.setUint8(18, 0);          // mapping family
+        return bytes;
+      }
+
+      async function startAudio() {
+        try {
+          if (!scrcpyClient?.audioStream) {
+            console.warn("[audio] không có luồng âm thanh (thiết bị không hỗ trợ)");
+            return;
+          }
+          // LƯU Ý: client.audioStream là Promise của CHÍNH object metadata
+          // (khác với videoStream vốn có thuộc tính .metadata riêng).
+          const meta = await scrcpyClient.audioStream;
+          if (meta.type === "disabled" || meta.type === "errored") {
+            console.warn("[audio] thiết bị không hỗ trợ ghi âm:", meta.type);
+            return;
+          }
+          const codec = meta.codec;
+          console.warn("[audio] codec:", codec.webCodecId);
+
+          if (codec === ScrcpyAudioCodec.Raw) {
+            console.warn("[audio] codec Raw chưa được hỗ trợ — bỏ qua");
+            return;
+          }
+
+          // Tạo AudioContext sớm (trong chuỗi thao tác người dùng) để
+          // tránh chính sách autoplay của trình duyệt.
+          ensureAudioContext();
+
+          const config = {
+            codec: codec.webCodecId,
+            sampleRate: 48000,
+            numberOfChannels: 2,
+            bitrate: 160000,
+          };
+          function createAndConfigureDecoder() {
+            audioDecoder = new AudioDecoder({
+              output: playAudioData,
+              error: (e) => console.error("[audio] decoder error:", e),
+            });
+            audioDecoder.configure(config);
+          }
+
+          // KHÔNG cấu hình trước — chờ packet cấu hình thật ("configuration")
+          // chứa csd-0 do encoder Android sinh ra (pre-skip chính xác).
+          let deviceCsdUsed = false;
+          const reader = meta.stream.getReader();
+          while (true) {
+            const { value: packet, done } = await reader.read();
+            if (done) break;
+            if (!packet?.data) continue;
+
+            // LƯU Ý: Tango phát type "configuration", không phải "config"!
+            if (packet.type === "configuration" || packet.type === "config") {
+              if (!deviceCsdUsed && packet.data.length > 0) {
+                config.description = packet.data.slice();
+                createAndConfigureDecoder();
+                deviceCsdUsed = true;
+                console.warn(
+                  "[audio] cấu hình bằng csd thực từ thiết bị:",
+                  packet.data.length,
+                  "bytes",
+                );
+              }
+              continue;
+            }
+
+            // Packet dữ liệu
+            if (!audioDecoder || audioDecoder.state !== "configured") {
+              // Fallback: một số luồng không gửi packet cấu hình
+              if (codec === ScrcpyAudioCodec.Opus) {
+                config.description = buildOpusDescription();
+                createAndConfigureDecoder();
+                console.warn(
+                  "[audio] cấu hình bằng OpusHead tổng hợp (fallback)",
+                );
+              } else {
+                continue;
+              }
+            }
+
+            audioDecoder.decode(
+              new EncodedAudioChunk({
+                type: "key",
+                timestamp: Math.round(performance.now() * 1000), // µs
+                data: packet.data,
+              }),
+            );
+          }
+        } catch (err) {
+          console.error("[audio] lỗi:", err);
+        }
+      }
+
+      function setupKeyboard() {
+        window.addEventListener("keydown", async (e) => {
+          const controller = scrcpyClient?.controller;
+          if (!controller) return;
+          // Giữ nguyên tổ hợp phím của trình duyệt (Ctrl+C/V, F5...).
+          if (e.ctrlKey || e.metaKey || e.altKey) return;
+          if (e.isComposing) return; // đang gõ IME (vd: tiếng Việt)
+
+          const keyCode = KEY_MAP[e.key];
+          if (keyCode) {
+            e.preventDefault();
+            try {
+              await controller.injectKeyCode({
+                action: AndroidKeyEventAction.Down,
+                keyCode,
+                repeat: 0,
+                metaState: 0,
+              });
+              await controller.injectKeyCode({
+                action: AndroidKeyEventAction.Up,
+                keyCode,
+                repeat: 0,
+                metaState: 0,
+              });
+              console.warn("[kbd] key:", e.key);
+            } catch (err) {
+              console.error("[kbd] injectKeyCode failed:", e.key, err);
+            }
+            return;
+          }
+
+          // Ký tự in được đơn → gửi thẳng text
+          if (e.key.length === 1) {
+            e.preventDefault();
+            try {
+              await controller.injectText(e.key);
+              console.warn("[kbd] text:", JSON.stringify(e.key));
+            } catch (err) {
+              console.error("[kbd] injectText failed:", e.key, err);
+            }
+          }
+        });
+      }
+
+      // Gửi phím điều hướng bằng injectKeyCode (tên member đúng theo enum).
+      const NAV_KEY_CODES = {
+        back: AndroidKeyCode.AndroidBack,
+        home: AndroidKeyCode.AndroidHome,
+        apps: AndroidKeyCode.AndroidAppSwitch,
+      };
+
+      async function sendNavKey(name) {
+        const controller = scrcpyClient?.controller;
+        console.warn("[nav]", name, "— controller:", !!controller);
+        if (!controller) return;
+        const keyCode = NAV_KEY_CODES[name];
+        if (!keyCode) {
+          console.warn("[nav] không biết phím:", name);
+          return;
+        }
+        const t0 = performance.now();
+        const SENTINEL = Symbol("timeout");
+        try {
+          const p = (async () => {
+            await controller.injectKeyCode({
+              action: AndroidKeyEventAction.Down,
+              keyCode,
+            });
+            await controller.injectKeyCode({
+              action: AndroidKeyEventAction.Up,
+              keyCode,
+            });
+          })();
+          const result = await Promise.race([
+            p,
+            new Promise((r) => setTimeout(() => r(SENTINEL), 5000)),
+          ]);
+          if (result === SENTINEL) {
+            console.error(
+              `[nav] ${name} TREO >5000ms — kênh control không phản hồi!`,
+            );
+          } else {
+            console.warn(
+              `[nav] ${name} hoàn tất sau ${(performance.now() - t0).toFixed(0)}ms`,
+            );
+          }
+        } catch (e) {
+          console.error(`${name} failed sau ${(performance.now() - t0).toFixed(0)}ms:`, e);
+        }
+      }
+
+      btnDisconnect.addEventListener("click", () => cleanup());
+
+      // 5. Nhận sự kiện từ Flutter (phím điều hướng, ngắt kết nối).
+      //    Đăng ký MỘT lần duy nhất ở mức top-level, có kiểm tra nguồn gốc.
+      window.addEventListener("message", async (event) => {
+        console.warn(
+          "[frame] nhận message — origin khớp:",
+          event.origin === window.location.origin,
+          "type:",
+          event.data?.type,
+        );
+        if (event.origin !== window.location.origin) return;
+        if (event.source !== window.parent) return;
+
+        const data = event.data;
+        if (!data || typeof data !== "object") return;
+
+        if (data.type === "keyEvent") {
+          const key = data.key;
+          if (NAV_KEY_CODES[key] && scrcpyClient?.controller) {
+            await sendNavKey(key);
+          }
+        } else if (data.type === "disconnect") {
+          await cleanup();
+        }
+      });
     </script>
   </body>
 </html>

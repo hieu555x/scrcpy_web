@@ -1,0 +1,20 @@
+{
+  "name": "scrcpy-web-vendor",
+  "private": true,
+  "type": "module",
+  "description": "Build bundle cục bộ cho các thư viện @yume-chan dùng bởi web/scrcpy_frame.html",
+  "scripts": {
+    "build": "esbuild entry.js --bundle --minify --format=esm --target=es2020 --outfile=../../web/vendor/scrcpy_bundle.js"
+  },
+  "dependencies": {
+    "@yume-chan/adb": "2.6.2",
+    "@yume-chan/adb-credential-web": "2.1.0",
+    "@yume-chan/adb-daemon-webusb": "2.3.2",
+    "@yume-chan/adb-scrcpy": "2.3.2",
+    "@yume-chan/scrcpy": "2.3.0",
+    "@yume-chan/scrcpy-decoder-webcodecs": "2.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.2"
+  }
+}
