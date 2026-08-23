@@ -5,11 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebUSB Scrcpy Controller</title>
     <style>
+      :root {
+        --bg: #0c0c0e;
+        --panel-bg: #1a1a1e;
+        --border: #2d2d34;
+        --text: #e4e4e7;
+        --text-muted: #a1a1aa;
+      }
+
+      body.light {
+        --bg: #f4f4f5;
+        --panel-bg: #ffffff;
+        --border: #e4e4e7;
+        --text: #18181b;
+        --text-muted: #71717a;
+      }
+
       body {
         margin: 0;
         padding: 0;
-        background-color: #0c0c0e;
-        color: #e4e4e7;
+        background-color: var(--bg);
+        color: var(--text);
         font-family:
           system-ui,
           -apple-system,
@@ -20,6 +36,9 @@
         width: 100vw;
         box-sizing: border-box;
         overflow: hidden;
+        transition:
+          background-color 0.25s,
+          color 0.25s;
       }
 
       .container {
@@ -36,14 +55,14 @@
         display: flex;
         flex-direction: column;
         gap: 15px;
-        background-color: #1a1a1e;
+        background-color: var(--panel-bg);
         padding: 24px;
         border-radius: 16px;
-        border: 1px solid #2d2d34;
+        border: 1px solid var(--border);
         max-width: 320px;
         width: 90%;
         text-align: center;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
       }
 
       button {
@@ -63,14 +82,14 @@
       }
 
       button:disabled {
-        background-color: #2d2d34;
-        color: #a1a1aa;
+        background-color: var(--border);
+        color: var(--text-muted);
         cursor: not-allowed;
       }
 
       #status-text {
         font-size: 0.9rem;
-        color: #a1a1aa;
+        color: var(--text-muted);
         white-space: pre-line;
       }
 
@@ -186,6 +205,13 @@
       let controlsAttached = false;
       let videoWidth = 0;
       let videoHeight = 0;
+
+      // Áp dụng theme đã lưu (dùng chung khóa 'scrcpy_theme' với Flutter).
+      try {
+        if ((localStorage.getItem("scrcpy_theme") || "") === "light") {
+          document.body.classList.add("light");
+        }
+      } catch (_) {}
 
       // CHẨN ĐOÁN: bắt MỌI pointerdown trong iframe từ pha capture,
       // giúp phân biệt "sự kiện không vào được iframe" vs "sai target".
@@ -1005,6 +1031,12 @@
           }
         } else if (data.type === "disconnect") {
           await cleanup();
+        } else if (data.type === "theme") {
+          const light = data.mode === "light";
+          document.body.classList.toggle("light", light);
+          try {
+            localStorage.setItem("scrcpy_theme", data.mode);
+          } catch (_) {}
         }
       });
     </script>

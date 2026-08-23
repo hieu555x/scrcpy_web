@@ -2,32 +2,50 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/scrcpy_service_stub.dart'
     if (dart.library.js_interop) '../services/scrcpy_web_service.dart';
-import '../viewmodels/scrcpy_view_model.dart';
+import '../viewmodels/scrcpy_sessions_view_model.dart';
+import '../viewmodels/theme_controller.dart';
 import '../models/scrcpy_state.dart';
 
 class ScrcpyWebWidget extends StatefulWidget {
-  const ScrcpyWebWidget({super.key});
+  final ThemeController themeController;
+
+  const ScrcpyWebWidget({super.key, required this.themeController});
 
   @override
   State<ScrcpyWebWidget> createState() => _ScrcpyWebWidgetState();
 }
 
 class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
-  late final ScrcpyViewModel _viewModel;
+  late final ScrcpySessionsViewModel _viewModel;
 
   @override
   void initState() {
     super.initState();
-    _viewModel = ScrcpyViewModel();
-    // Nhận trạng thái kết nối từ iframe (connecting/connected/error/disconnected).
-    scrcpyService.onStateChanged = _viewModel.updateState;
+    _viewModel = ScrcpySessionsViewModel(scrcpyService);
   }
 
   @override
   void dispose() {
-    scrcpyService.onStateChanged = null;
     _viewModel.dispose();
     super.dispose();
+  }
+
+  String get _currentThemeMode =>
+      widget.themeController.isDark ? 'dark' : 'light';
+
+  void _addSession() {
+    final session = _viewModel.addSession();
+    // Đồng bộ theme hiện tại cho iframe mới tạo.
+    session.setTheme(_currentThemeMode);
+  }
+
+  void _toggleTheme() {
+    widget.themeController.toggle();
+    // Áp dụng cho toàn bộ phiên đang mở.
+    final mode = _currentThemeMode;
+    for (final session in List.of(_viewModel.sessions)) {
+      session.setTheme(mode);
+    }
   }
 
   @override
@@ -35,73 +53,175 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Điều khiển Android (WebUSB)'),
-        backgroundColor: Colors.black,
         elevation: 0,
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: ValueListenableBuilder<ScrcpyState>(
-              valueListenable: _viewModel.stateNotifier,
-              builder: (context, state, child) {
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DotIndicator(color: _getStateColor(state)),
-                    const SizedBox(width: 8),
-                    Text(
-                      _getStateText(state),
-                      style: const TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-                  ],
-                );
-              },
+          IconButton(
+            icon: Icon(
+              widget.themeController.isDark
+                  ? Icons.light_mode
+                  : Icons.dark_mode,
             ),
+            tooltip: widget.themeController.isDark
+                ? 'Chuyển sang chế độ sáng'
+                : 'Chuyển sang chế độ tối',
+            onPressed: kIsWeb ? _toggleTheme : null,
+          ),
+          if (kIsWeb)
+            IconButton(
+              icon: const Icon(Icons.add),
+              tooltip: 'Thêm thiết bị',
+              onPressed: _addSession,
+            ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: !kIsWeb
+          ? const _UnsupportedPlatformView()
+          : AnimatedBuilder(
+              animation: _viewModel,
+              builder: (context, _) => _buildBody(context),
+            ),
+      bottomSheet: !kIsWeb
+          ? null
+          : AnimatedBuilder(
+              animation: _viewModel,
+              builder: (context, _) => _buildBottomSheet(),
+            ),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    final sessions = _viewModel.sessions;
+    if (sessions.isEmpty) return _buildEmpty(context);
+
+    final scheme = Theme.of(context).colorScheme;
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 48,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            itemCount: sessions.length,
+            itemBuilder: (context, index) => _buildDeviceChip(
+              context,
+              index,
+              scheme,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest.withAlpha(80),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: scheme.outlineVariant, width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(
+                    Theme.of(context).brightness == Brightness.dark ? 140 : 35,
+                  ),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.all(Radius.circular(15)),
+              child: IndexedStack(
+                index: _viewModel.activeIndex,
+                children: [
+                  for (final session in sessions)
+                    HtmlElementView(viewType: session.viewType),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmpty(BuildContext context) {
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.usb, size: 64, color: onSurfaceVariant),
+          const SizedBox(height: 16),
+          Text(
+            'Chưa có thiết bị nào',
+            style: TextStyle(color: onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _addSession,
+            icon: const Icon(Icons.add),
+            label: const Text('Kết nối thiết bị'),
           ),
         ],
       ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return Center(
+    );
+  }
+
+  Widget _buildDeviceChip(
+    BuildContext context,
+    int index,
+    ColorScheme scheme,
+  ) {
+    final session = _viewModel.sessions[index];
+    final selected = index == _viewModel.activeIndex;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ValueListenableBuilder<ScrcpyState>(
+        valueListenable: session.state,
+        builder: (context, state, _) {
+          return InkWell(
+            onTap: () => _viewModel.setActive(index),
+            borderRadius: BorderRadius.circular(20),
             child: Container(
-              width: constraints.maxWidth > 900 ? 900 : constraints.maxWidth * 0.95,
-              height: constraints.maxHeight > 700 ? 700 : constraints.maxHeight * 0.9,
-              margin: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
-                color: const Color(0xFF1a1a1e),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF2d2d34), width: 1),
-                boxShadow: const [
-                  BoxShadow(color: Colors.black54, blurRadius: 15, offset: Offset(0, 5)),
+                color: selected
+                    ? scheme.primary
+                    : scheme.surfaceContainerHighest.withAlpha(90),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: selected ? scheme.primary : scheme.outlineVariant,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DotIndicator(color: _getStateColor(state)),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Thiết bị ${index + 1}',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: selected
+                          ? scheme.onPrimary
+                          : scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  InkWell(
+                    onTap: () => _viewModel.removeSession(index),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Icon(
+                      Icons.close,
+                      size: 14,
+                      color: selected
+                          ? scheme.onPrimary.withAlpha(180)
+                          : scheme.onSurfaceVariant,
+                    ),
+                  ),
                 ],
               ),
-              child: ClipRRect(
-                borderRadius: const BorderRadius.all(Radius.circular(15)),
-                child: kIsWeb
-                    ? const HtmlElementView(viewType: 'scrcpy-webusb-view')
-                    : const _UnsupportedPlatformView(),
-              ),
-            ),
-          );
-        },
-      ),
-      bottomSheet: ValueListenableBuilder<ScrcpyState>(
-        valueListenable: _viewModel.stateNotifier,
-        builder: (context, state, child) {
-          if (state != ScrcpyState.connected) return const SizedBox.shrink();
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: const Color(0xFF1a1a1e),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildNavButton(Icons.chevron_left, 'Back', () => scrcpyService.sendKeyEvent('back')),
-                const SizedBox(width: 24),
-                _buildNavButton(Icons.home, 'Home', () => scrcpyService.sendKeyEvent('home')),
-                const SizedBox(width: 24),
-                _buildNavButton(Icons.apps, 'Apps', () => scrcpyService.sendKeyEvent('apps')),
-                const SizedBox(width: 24),
-                _buildNavButton(Icons.link_off, 'Ngắt kết nối', () => scrcpyService.disconnect()),
-              ],
             ),
           );
         },
@@ -109,7 +229,54 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
     );
   }
 
+  Widget _buildBottomSheet() {
+    final active = _viewModel.active;
+    if (active == null) return const SizedBox.shrink();
+
+    final scheme = Theme.of(context).colorScheme;
+
+    return ValueListenableBuilder<ScrcpyState>(
+      valueListenable: active.state,
+      builder: (context, state, _) {
+        if (state != ScrcpyState.connected) return const SizedBox.shrink();
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          color: scheme.surface,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildNavButton(
+                Icons.chevron_left,
+                'Back',
+                () => active.sendKeyEvent('back'),
+              ),
+              const SizedBox(width: 24),
+              _buildNavButton(
+                Icons.home,
+                'Home',
+                () => active.sendKeyEvent('home'),
+              ),
+              const SizedBox(width: 24),
+              _buildNavButton(
+                Icons.apps,
+                'Apps',
+                () => active.sendKeyEvent('apps'),
+              ),
+              const SizedBox(width: 24),
+              _buildNavButton(
+                Icons.link_off,
+                'Ngắt kết nối',
+                () => active.disconnect(),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildNavButton(IconData icon, String label, VoidCallback onPressed) {
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     return Tooltip(
       message: label,
       child: Material(
@@ -119,7 +286,7 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Icon(icon, color: Colors.white70, size: 20),
+            child: Icon(icon, color: onSurfaceVariant, size: 20),
           ),
         ),
       ),
@@ -128,19 +295,14 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
 
   Color _getStateColor(ScrcpyState state) {
     switch (state) {
-      case ScrcpyState.connected: return Colors.green;
-      case ScrcpyState.connecting: return Colors.orange;
-      case ScrcpyState.error: return Colors.red;
-      case ScrcpyState.disconnected: return Colors.grey;
-    }
-  }
-
-  String _getStateText(ScrcpyState state) {
-    switch (state) {
-      case ScrcpyState.connected: return 'Đã kết nối';
-      case ScrcpyState.connecting: return 'Đang kết nối...';
-      case ScrcpyState.error: return 'Lỗi';
-      case ScrcpyState.disconnected: return 'Chưa kết nối';
+      case ScrcpyState.connected:
+        return Colors.green;
+      case ScrcpyState.connecting:
+        return Colors.orange;
+      case ScrcpyState.error:
+        return Colors.red;
+      case ScrcpyState.disconnected:
+        return Colors.grey;
     }
   }
 }
@@ -169,15 +331,16 @@ class _UnsupportedPlatformView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.usb_off, size: 64, color: Colors.grey),
-          SizedBox(height: 16),
+          Icon(Icons.usb_off, size: 64, color: onSurfaceVariant),
+          const SizedBox(height: 16),
           Text(
             'Tính năng này chỉ khả dụng trên Web',
-            style: TextStyle(color: Colors.grey),
+            style: TextStyle(color: onSurfaceVariant),
           ),
         ],
       ),

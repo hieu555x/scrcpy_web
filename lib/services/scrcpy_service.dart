@@ -17,6 +17,9 @@ abstract class ScrcpySession {
 
   /// Yêu cầu phiên ngắt kết nối thiết bị.
   void disconnect();
+
+  /// Áp dụng chế độ sáng/tối cho iframe ('dark' | 'light').
+  void setTheme(String mode);
 }
 
 /// Quản lý nhiều phiên kết nối cùng lúc.

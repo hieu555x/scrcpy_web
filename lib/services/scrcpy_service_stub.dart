@@ -6,18 +6,26 @@ import 'scrcpy_service.dart';
 class _StubSession implements ScrcpySession {
   static int _counter = 0;
 
-  @override
-  String get id => 'stub-${_counter++}';
+  final ValueNotifier<ScrcpyState> _state =
+      ValueNotifier<ScrcpyState>(ScrcpyState.disconnected);
 
   @override
-  ValueListenable<ScrcpyState> get state =>
-      ValueNotifier<ScrcpyState>(ScrcpyState.disconnected);
+  final String id = 'stub-${_counter++}';
+
+  @override
+  String get viewType => 'stub-view-$id';
+
+  @override
+  ValueListenable<ScrcpyState> get state => _state;
 
   @override
   void sendKeyEvent(String key) {}
 
   @override
   void disconnect() {}
+
+  @override
+  void setTheme(String mode) {}
 }
 
 /// Implementation rỗng cho các nền tảng không phải web.

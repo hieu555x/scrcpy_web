@@ -10,7 +10,9 @@ class ScrcpyWebSession implements ScrcpySession {
   @override
   final String id;
 
+  @override
   final String viewType;
+
   final web.HTMLIFrameElement iframe;
 
   @override
@@ -33,11 +35,16 @@ class ScrcpyWebSession implements ScrcpySession {
     _postToFrame({'type': 'disconnect'});
   }
 
+  @override
+  void setTheme(String mode) {
+    _postToFrame({'type': 'theme', 'mode': mode});
+  }
+
   void _postToFrame(Map<String, Object> message) {
     final web.Window? frameWindow = iframe.contentWindow;
     if (frameWindow == null) return;
     // TargetOrigin cụ thể thay vì '*'.
-    frameWindow.postMessage(message.jsify(), web.window.location.origin);
+    frameWindow.postMessage(message.jsify()!, web.window.location.origin.toJS);
   }
 }
 
@@ -104,13 +111,11 @@ class ScrcpyWebService implements ScrcpyService {
     if (event.origin != web.window.location.origin) return;
 
     // Định tuyến: tìm phiên nào có contentWindow trùng nguồn message.
-    final Object? source = event.source;
+    final web.Window? source = event.source as web.Window?;
     ScrcpyWebSession? owner;
     for (final session in _sessions.values) {
       final window = session.iframe.contentWindow;
-      if (window != null &&
-          source is web.Window &&
-          source.equals(window).toDart) {
+      if (window != null && source != null && source.equals(window).toDart) {
         owner = session;
         break;
       }

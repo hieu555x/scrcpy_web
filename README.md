@@ -5,10 +5,14 @@ thông qua **WebUSB**, không cần cài đặt ứng dụng trên máy tính.
 
 ## Tính năng
 
+- **Kết nối nhiều thiết bị cùng lúc** — mỗi điện thoại một tab riêng, chuyển qua lại tự do
 - Kết nối Android qua WebUSB (ADB over USB)
 - Hiển thị màn hình điện thoại real-time (WebCodecs + WebGL)
+- Truyền âm thanh từ điện thoại ra loa máy tính (Opus/AAC qua WebCodecs)
 - Điều khiển chuột/cảm ứng (hỗ trợ cả touch trên thiết bị di động)
+- Cuộn chuột, chuột phải = Back, chuột giữa = Home (giống scrcpy desktop)
 - Gõ bàn phím PC → thiết bị (ký tự, Backspace, Enter, phím mũi tên...; Esc = Back)
+- Phím điều hướng: Back, Home, App Switch
 - Ngắt kết nối an toàn từ UI
 - Chỉ báo trạng thái kết nối đồng bộ giữa Flutter ↔ iframe
 - Giao diện dark mode hiện đại, responsive layout
@@ -51,19 +55,25 @@ lib/
 ├── models/
 │   └── scrcpy_state.dart              # Enum trạng thái kết nối
 ├── services/
-│   ├── scrcpy_service.dart            # Interface trừu tượng
-│   ├── scrcpy_web_service.dart        # Web impl (package:web + js_interop)
+│   ├── scrcpy_service.dart            # Interface ScrcpySession + ScrcpyService
+│   ├── scrcpy_web_service.dart        # Web impl: nhiều phiên, mỗi phiên 1 iframe
 │   └── scrcpy_service_stub.dart       # Stub cho nền tảng khác web
 ├── viewmodels/
-│   └── scrcpy_view_model.dart         # Quản lý state (ChangeNotifier)
+│   └── scrcpy_sessions_view_model.dart # Quản lý danh sách phiên (đa thiết bị)
 └── widgets/
-    └── scrcpy_web_widget.dart         # Widget chính (HtmlElementView)
+    └── scrcpy_web_widget.dart         # Widget chính (tab thiết bị + IndexedStack)
 web/
 ├── index.html                         # HTML entry point
-├── scrcpy_frame.html                  # Logic WebUSB/scrcpy (JS)
-├── vendor/                            # Thư viện @yume-chan bundle cục bộ
+├── scrcpy_frame.html                  # Logic WebUSB/scrcpy (JS) — mỗi iframe 1 phiên
+├── vendor/                            # Bundle @yume-chan build bằng esbuild
 └── scrcpy-server.jar                  # Server scrcpy chạy trên điện thoại
 ```
+
+### Kết nối nhiều thiết bị
+
+Bấm **＋** trên thanh app để thêm một tab kết nối mới — mỗi tab có iframe và
+phiên scrcpy độc lập. Các nút Back/Home/Apps ở dưới chỉ tác động lên tab đang
+chọn; bàn phím/chuột tác động lên iframe đang focus.
 
 ### Luồng giao tiếp Flutter ↔ iframe
 
