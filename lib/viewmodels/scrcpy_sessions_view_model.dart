@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../models/scrcpy_options.dart';
 import '../models/scrcpy_state.dart';
 import '../services/scrcpy_service.dart';
 
@@ -7,6 +8,16 @@ class ScrcpySessionsViewModel extends ChangeNotifier {
   final ScrcpyService service;
 
   final List<ScrcpySession> sessions = [];
+
+  /// Các options mặc định của phiên đang được chỉnh sửa (bản sao mutable).
+  ScrcpyOptions _currentOptions = ScrcpyOptions.defaults;
+
+  ScrcpyOptions get currentOptions => _currentOptions;
+
+  void setGlobalOptions(ScrcpyOptions options) {
+    _currentOptions = options;
+    notifyListeners();
+  }
 
   int _activeIndex = 0;
 
@@ -25,9 +36,10 @@ class ScrcpySessionsViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Thêm một phiên mới và chuyển tới nó.
-  ScrcpySession addSession() {
-    final session = service.createSession();
+  /// Thêm một phiên mới với [options] hiện tại và chuyển tới nó.
+  ScrcpySession addSession({ScrcpyOptions? options}) {
+    final resolvedOptions = options ?? _currentOptions;
+    final session = service.createSession(options: resolvedOptions);
     sessions.add(session);
     _activeIndex = sessions.length - 1;
     notifyListeners();

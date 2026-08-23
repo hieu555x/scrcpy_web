@@ -59,10 +59,125 @@
         padding: 24px;
         border-radius: 16px;
         border: 1px solid var(--border);
-        max-width: 320px;
-        width: 90%;
-        text-align: center;
+        max-width: 580px;
+        width: 95%;
+        text-align: left;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.25);
+        max-height: 85vh;
+        overflow-y: auto;
+      }
+
+      .options-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .options-grid .full-width {
+        grid-column: 1 / -1;
+      }
+
+      .options-section {
+        grid-column: 1 / -1;
+        margin-top: 4px;
+      }
+
+      .options-section-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #3b82f6;
+        margin-bottom: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .option-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 0;
+      }
+
+      .option-label {
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .option-desc {
+        font-size: 11px;
+        color: var(--text-muted);
+        margin-top: 2px;
+      }
+
+      .option-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .mini-input {
+        width: 80px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--text);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .mini-select {
+        padding: 4px 8px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        color: var(--text);
+        font-size: 12px3;
+      }
+
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 36px;
+        height: 20px;
+      }
+
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+
+      .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: var(--border);
+        transition: 0.2s;
+        border-radius: 20px;
+      }
+
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 14px;
+        width: 14px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: 0.2s;
+        border-radius: 50%;
+      }
+
+      input:checked + .slider {
+        background-color: #3b82f6;
+      }
+
+      input:checked + .slider:before {
+        transform: translateX(16px);
       }
 
       button {
@@ -152,8 +267,184 @@
           "
         >
           Hãy đảm bảo bạn đã bật <b>Gỡ lỗi USB (USB Debugging)</b> trên thiết bị
-          Android của mình.
+          Android của mình. Tùy chọn được lưu tự động.
         </p>
+
+        <!-- Cấu hình Video -->
+        <div>
+          <div class="options-section-title">Video</div>
+          <div class="options-grid">
+            <div class="option-row">
+              <div>
+                <div class="option-label">Bật video</div>
+                <div class="option-desc">Luồng video từ điện thoại</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-video" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">Độ phân giải</div>
+              </div>
+              <select id="opt-resolution" class="mini-select">
+                <option value="default">Mặc định</option>
+                <option value="original">Theo thiết bị</option>
+                <option value="custom">Tùy chỉnh</option>
+              </select>
+            </div>
+            <div class="option-row full-width" id="custom-res-row" style="display:none">
+              <div class="option-label">Kích thước tùy chỉnh</div>
+              <div class="option-controls">
+                <input type="number" id="opt-width" class="mini-input" value="1080" placeholder="Rộng">
+                <span>x</span>
+                <input type="number" id="opt-height" class="mini-input" value="1920" placeholder="Cao">
+              </div>
+            </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">Video bitrate</div>
+              </div>
+              <div class="option-controls">
+                <input type="text" id="opt-video-bitrate" class="mini-input" value="8 Mbps" style="width:90px">
+                <select id="opt-video-codec" class="mini-select">
+                  <option value="h264">H.264</option>
+                  <option value="h265">H.265</option>
+                  <option value="av1">AV1</option>
+                </select>
+              </div>
+            </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">FPS tối đa</div>
+              </div>
+              <input type="range" id="opt-max-fps" min="0" max="120" value="0" class="options-grid" style="width:120px;accent-color:#3b82f6">
+              <span id="fps-display" style="font-size:11px;color:var(--text-muted)">Không giới hạn</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cấu hình Audio -->
+        <div>
+          <div class="options-section-title">Âm thanh</div>
+          <div class="options-grid">
+            <div class="option-row">
+              <div>
+                <div class="option-label">Bật âm thanh</div>
+                <div class="option-desc">Phát âm thanh từ điện thoại</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-audio" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">Audio codec</div>
+              </div>
+              <select id="opt-audio-codec" class="mini-select">
+                <option value="opus">Opus</option>
+                <option value="aac">AAC</option>
+                <option value="raw">Raw</option>
+              </select>
+            </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">Audio bitrate</div>
+              </div>
+              <input type="text" id="opt-audio-bitrate" class="mini-input" value="128 kbps" style="width:90px">
+            </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">Nguồn âm thanh</div>
+              </div>
+              <select id="opt-audio-source" class="mini-select">
+                <option value="output">Output (loa)</option>
+                <option value="playback">Playback</option>
+                <option value="mic-unprocessed">Mic (không xử lý)</option>
+                <option value="mic-camcorder">Mic (camcorder)</option>
+                <option value="mic-voice-communication">Mic (giao tiếp)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cấu hình Màn hình -->
+        <div>
+          <div class="options-section-title">Màn hình</div>
+          <div class="options-grid">
+            <div class="option-row">
+              <div>
+                <div class="option-label">Điều khiển</div>
+                <div class="option-desc">Chuột/bàn phím</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-control" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">Clipboard sync</div>
+                <div class="option-desc">Sao chép/dán giữa máy và điện thoại</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-clipboard" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">Stay awake</div>
+                <div class="option-desc">Giữ màn hình điện thoại sáng</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-stay-awake">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">Hiển thị điểm chạm</div>
+                <div class="option-desc">Hiện vết chạm khi điều khiển</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-show-touches">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">Xoay màn hình</div>
+              </div>
+              <select id="opt-angle" class="mini-select">
+                <option value="0">0°</option>
+                <option value="90">90°</option>
+                <option value="180">180°</option>
+                <option value="270">270°</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Camera -->
+        <div>
+          <div class="options-section-title">Camera</div>
+          <div class="options-grid">
+            <div class="option-row">
+              <div>
+                <div class="option-label">Camera mirroring</div>
+                <div class="option-desc">Hiển thị camera sau</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-camera-mirror">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+
         <button id="btn-connect">Kết Nối Điện Thoại</button>
         <div id="status-text">Thiết bị: Chưa kết nối</div>
       </div>
@@ -212,6 +503,115 @@
           document.body.classList.add("light");
         }
       } catch (_) {}
+
+      // --- Đọc/Sử dụng/Lưu options scrcpy từ localStorage ---
+      function loadOptions() {
+        try {
+          const stored = localStorage.getItem("scrcpy_options");
+          if (!stored) return {};
+          return JSON.parse(stored);
+        } catch (_) {
+          return {};
+        }
+      }
+
+      function saveOptions(opts) {
+        try {
+          localStorage.setItem("scrcpy_options", JSON.stringify(opts));
+        } catch (_) {}
+      }
+
+      function readOptionsFromUI() {
+        // Hiển thị hàng custom resolution khi cần
+        const resolution = document.getElementById("opt-resolution").value;
+        document.getElementById("custom-res-row").style.display =
+          resolution === "custom" ? "flex" : "none";
+
+        const fps = parseInt(document.getElementById("opt-max-fps").value) || 0;
+        document.getElementById("fps-display").textContent =
+          fps === 0 ? "Không giới hạn" : fps + " fps";
+
+        return {
+          video: document.getElementById("opt-video").checked,
+          resolution: resolution,
+          customWidth: parseInt(document.getElementById("opt-width").value) || 1080,
+          customHeight: parseInt(document.getElementById("opt-height").value) || 1920,
+          videoBitRate: parseBitRate(document.getElementById("opt-video-bitrate").value),
+          videoCodec: document.getElementById("opt-video-codec").value,
+          maxFps: fps,
+          audio: document.getElementById("opt-audio").checked,
+          audioCodec: document.getElementById("opt-audio-codec").value,
+          audioBitRate: parseBitRate(document.getElementById("opt-audio-bitrate").value),
+          audioSource: document.getElementById("opt-audio-source").value,
+          control: document.getElementById("opt-control").checked,
+          clipboardAutosync: document.getElementById("opt-clipboard").checked,
+          stayAwake: document.getElementById("opt-stay-awake").checked,
+          showTouches: document.getElementById("opt-show-touches").checked,
+          angle: parseInt(document.getElementById("opt-angle").value) || 0,
+          cameraMirror: document.getElementById("opt-camera-mirror").checked,
+        };
+      }
+
+      function applyOptionsToUI(opts) {
+        if (!opts) return;
+        document.getElementById("opt-video").checked = opts.video !== false;
+        document.getElementById("opt-resolution").value = opts.resolution || "default";
+        document.getElementById("opt-width").value = opts.customWidth || 1080;
+        document.getElementById("opt-height").value = opts.customHeight || 1920;
+        document.getElementById("opt-video-bitrate").value = formatBitRate(opts.videoBitRate || 8_000_000);
+        document.getElementById("opt-video-codec").value = opts.videoCodec || "h264";
+        document.getElementById("opt-max-fps").value = opts.maxFps || 0;
+        document.getElementById("fps-display").textContent =
+          (opts.maxFps || 0) === 0 ? "Không giới hạn" : (opts.maxFps || 0) + " fps";
+        document.getElementById("opt-audio").checked = opts.audio !== false;
+        document.getElementById("opt-audio-codec").value = opts.audioCodec || "opus";
+        document.getElementById("opt-audio-bitrate").value = formatBitRate(opts.audioBitRate || 128_000);
+        document.getElementById("opt-audio-source").value = opts.audioSource || "output";
+        document.getElementById("opt-control").checked = opts.control !== false;
+        document.getElementById("opt-clipboard").checked = opts.clipboardAutosync !== false;
+        document.getElementById("opt-stay-awake").checked = opts.stayAwake || false;
+        document.getElementById("opt-show-touches").checked = opts.showTouches || false;
+        document.getElementById("opt-angle").value = opts.angle || "0";
+        document.getElementById("opt-camera-mirror").checked = opts.cameraMirror || false;
+        // Hiển thị hàng custom resolution nếu cần
+        document.getElementById("custom-res-row").style.display =
+          opts.resolution === "custom" ? "flex" : "none";
+      }
+
+      function formatBitRate(bps) {
+        if (bps >= 1_000_000) return (bps / 1_000_000).toFixed(1) + " Mbps";
+        if (bps >= 1_000) return (bps / 1_000) + " kbps";
+        return bps + " bps";
+      }
+
+      function parseBitRate(s) {
+        s = (s || "").trim().toLowerCase();
+        const m = s.match(/([\d.]+)\s*(Mbps|Kbps|KBPS|kbps|mbps|bps)?/);
+        if (!m) return 8_000_000;
+        const num = parseFloat(m[1]) || 8.0;
+        const unit = (m[2] || "Mbps").toLowerCase();
+        if (unit.includes("mbps")) return Math.round(num * 1_000_000);
+        if (unit.includes("kbps")) return Math.round(num * 1_000);
+        return Math.round(num);
+      }
+
+      // Load options ban đầu từ localStorage (lần sau)
+      applyOptionsToUI(loadOptions());
+
+      // Tự động lưu mỗi khi có thay đổi
+      const allInputs = document.querySelectorAll(
+        "#setup-panel input, #setup-panel select",
+      );
+      allInputs.forEach((el) => {
+        el.addEventListener("change", () => {
+          const opts = readOptionsFromUI();
+          saveOptions(opts);
+        });
+        el.addEventListener("input", () => {
+          const opts = readOptionsFromUI();
+          saveOptions(opts);
+        });
+      });
 
       // CHẨN ĐOÁN: bắt MỌI pointerdown trong iframe từ pha capture,
       // giúp phân biệt "sự kiện không vào được iframe" vs "sai target".
@@ -389,12 +789,35 @@
           );
 
           setStatus("Đang khởi động gương: 3/5 - Thiết lập cấu hình...");
+          const userOpts = loadOptions();
           const adbOptions = new AdbScrcpyOptions3_3_3(
             {
               tunnelForward: true,
-              sendFrameMeta: true,
-              control: true,
-              audio: true,
+              sendFrameMeta: userOpts.sendFrameMeta !== false,
+              control: userOpts.control !== false,
+              video: userOpts.video !== false,
+              audio: userOpts.audio !== false,
+              // Video bitrate
+              bitRate: userOpts.videoBitRate || 8_000_000,
+              // Video codec
+              videoCodec: userOpts.videoCodec || "h264",
+              // Max fps
+              maxFps: userOpts.maxFps || 0,
+              // Audio
+              audioCodec: userOpts.audioCodec || "opus",
+              audioBitRate: userOpts.audioBitRate || 128_000,
+              audioSource: userOpts.audioSource || "output",
+              // Clipboard & stay awake
+              clipboardAutosync: userOpts.clipboardAutosync !== false,
+              stayAwake: userOpts.stayAwake || false,
+              // Touch indicator
+              showTouches: userOpts.showTouches || false,
+              // Angle
+              angle: userOpts.angle || 0,
+              // Camera mirror (newDisplay)
+              ...(userOpts.cameraMirror
+                ? { newDisplay: new NewDisplay() }
+                : {}),
             },
             {
               version: "3.3.3",

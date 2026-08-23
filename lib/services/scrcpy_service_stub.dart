@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../models/scrcpy_options.dart';
 import '../models/scrcpy_state.dart';
 import 'scrcpy_service.dart';
 
@@ -34,7 +35,7 @@ class ScrcpyServiceStub implements ScrcpyService {
   void Function(ScrcpySession session, ScrcpyState state)? onStateChanged;
 
   @override
-  ScrcpySession createSession() => _StubSession();
+  ScrcpySession createSession({ScrcpyOptions? options}) => _StubSession();
 
   @override
   void disposeSession(ScrcpySession session) {}

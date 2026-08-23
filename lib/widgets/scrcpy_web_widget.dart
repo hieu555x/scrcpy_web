@@ -4,6 +4,7 @@ import '../services/scrcpy_service_stub.dart'
     if (dart.library.js_interop) '../services/scrcpy_web_service.dart';
 import '../viewmodels/scrcpy_sessions_view_model.dart';
 import '../viewmodels/theme_controller.dart';
+import '../models/scrcpy_options.dart';
 import '../models/scrcpy_state.dart';
 
 class ScrcpyWebWidget extends StatefulWidget {
@@ -34,6 +35,7 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
       widget.themeController.isDark ? 'dark' : 'light';
 
   void _addSession() {
+    if (!kIsWeb) return;
     final session = _viewModel.addSession();
     // Đồng bộ theme hiện tại cho iframe mới tạo.
     session.setTheme(_currentThemeMode);
@@ -83,10 +85,7 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
             ),
       bottomSheet: !kIsWeb
           ? null
-          : AnimatedBuilder(
-              animation: _viewModel,
-              builder: (context, _) => _buildBottomSheet(),
-            ),
+          : const SizedBox.shrink(),
     );
   }
 
@@ -112,34 +111,37 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
           ),
         ),
         Expanded(
-          child: Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest.withAlpha(80),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: scheme.outlineVariant, width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(
-                    Theme.of(context).brightness == Brightness.dark ? 140 : 35,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            child: Container(
+              decoration: BoxDecoration(
+                color: scheme.surfaceContainerHighest.withAlpha(80),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: scheme.outlineVariant, width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(
+                      Theme.of(context).brightness == Brightness.dark ? 140 : 35,
+                    ),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
                   ),
-                  blurRadius: 15,
-                  offset: const Offset(0, 5),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: const BorderRadius.all(Radius.circular(15)),
-              child: IndexedStack(
-                index: _viewModel.activeIndex,
-                children: [
-                  for (final session in sessions)
-                    HtmlElementView(viewType: session.viewType),
                 ],
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.all(Radius.circular(15)),
+                child: IndexedStack(
+                  index: _viewModel.activeIndex,
+                  children: [
+                    for (final session in sessions)
+                      HtmlElementView(viewType: session.viewType),
+                  ],
+                ),
               ),
             ),
           ),
         ),
+        _buildControlBar(),
       ],
     );
   }
@@ -229,7 +231,7 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
     );
   }
 
-  Widget _buildBottomSheet() {
+  Widget _buildControlBar() {
     final active = _viewModel.active;
     if (active == null) return const SizedBox.shrink();
 
@@ -239,36 +241,43 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
       valueListenable: active.state,
       builder: (context, state, _) {
         if (state != ScrcpyState.connected) return const SizedBox.shrink();
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: scheme.surface,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildNavButton(
-                Icons.chevron_left,
-                'Back',
-                () => active.sendKeyEvent('back'),
-              ),
-              const SizedBox(width: 24),
-              _buildNavButton(
-                Icons.home,
-                'Home',
-                () => active.sendKeyEvent('home'),
-              ),
-              const SizedBox(width: 24),
-              _buildNavButton(
-                Icons.apps,
-                'Apps',
-                () => active.sendKeyEvent('apps'),
-              ),
-              const SizedBox(width: 24),
-              _buildNavButton(
-                Icons.link_off,
-                'Ngắt kết nối',
-                () => active.disconnect(),
-              ),
-            ],
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerHighest.withAlpha(80),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: scheme.outlineVariant, width: 1),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildNavButton(
+                  Icons.chevron_left,
+                  'Back',
+                  () => active.sendKeyEvent('back'),
+                ),
+                const SizedBox(width: 24),
+                _buildNavButton(
+                  Icons.home,
+                  'Home',
+                  () => active.sendKeyEvent('home'),
+                ),
+                const SizedBox(width: 24),
+                _buildNavButton(
+                  Icons.apps,
+                  'Apps',
+                  () => active.sendKeyEvent('apps'),
+                ),
+                const SizedBox(width: 24),
+                _buildNavButton(
+                  Icons.link_off,
+                  'Ngắt kết nối',
+                  () => active.disconnect(),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -344,6 +353,490 @@ class _UnsupportedPlatformView extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Dialog cấu hình tùy chọn scrcpy trước khi kết nối.
+class ScrcpyOptionsDialog extends StatefulWidget {
+  final ScrcpyOptions currentOptions;
+  final bool isDark;
+
+  const ScrcpyOptionsDialog({
+    super.key,
+    required this.currentOptions,
+    required this.isDark,
+  });
+
+  @override
+  State<ScrcpyOptionsDialog> createState() => _ScrcpyOptionsDialogState();
+}
+
+class _ScrcpyOptionsDialogState extends State<ScrcpyOptionsDialog> {
+  late ScrcpyOptions _opts;
+  final TextEditingController _customWidthCtrl = TextEditingController();
+  final TextEditingController _customHeightCtrl = TextEditingController();
+  final TextEditingController _bitRateCtrl = TextEditingController();
+  final TextEditingController _audioBitRateCtrl = TextEditingController();
+
+  List<String> get _resolutionOptions => ['default', 'original', 'custom'];
+  List<String> get _videoCodecOptions => ['h264', 'h265', 'av1'];
+  List<String> get _audioCodecOptions => ['opus', 'aac', 'raw'];
+  List<String> get _audioSourceOptions => [
+        'output',
+        'playback',
+        'mic-unprocessed',
+        'mic-camcorder',
+        'mic-voice-recognition',
+        'mic-voice-communication',
+        'voice-call',
+        'voice-call-uplink',
+        'voice-call-downlink',
+        'voice-performance',
+      ];
+  List<String> get _angleOptions => ['0', '90', '180', '270'];
+
+  bool get _isCustomResolution => _opts.resolution == 'custom';
+  bool get _isCameraMirror => _opts.cameraMirror;
+  bool get _isAudio => _opts.audio;
+
+  @override
+  void initState() {
+    super.initState();
+    _opts = widget.currentOptions;
+    _customWidthCtrl.text = _opts.customWidth.toString();
+    _customHeightCtrl.text = _opts.customHeight.toString();
+    _bitRateCtrl.text = _formatBitRate(_opts.videoBitRate);
+    _audioBitRateCtrl.text = _formatBitRate(_opts.audioBitRate);
+  }
+
+  @override
+  void dispose() {
+    _customWidthCtrl.dispose();
+    _customHeightCtrl.dispose();
+    _bitRateCtrl.dispose();
+    _audioBitRateCtrl.dispose();
+    super.dispose();
+  }
+
+  static String _formatBitRate(int bps) {
+    if (bps >= 1_000_000) return '${(bps / 1_000_000).toStringAsFixed(1)} Mbps';
+    if (bps >= 1_000) return '${bps / 1_000} kbps';
+    return '$bps bps';
+  }
+
+  static int _parseBitRate(String s) {
+    s = s.trim().toLowerCase();
+    final regex = RegExp(r'([\d.]+)\s*(Mbps|Kbps|kbps|mbps|kbps|bps)?');
+    final m = regex.firstMatch(s);
+    if (m == null) return 8_000_000;
+    final num = double.tryParse(m.group(1) ?? '') ?? 8.0;
+    final unit = (m.group(2) ?? 'Mbps').toLowerCase();
+    if (unit.contains('mbps')) return (num * 1_000_000).round();
+    if (unit.contains('kbps')) return (num * 1_000).round();
+    return num.round();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.tune, color: scheme.primary),
+          const SizedBox(width: 8),
+          const Text('Tùy chọn Scrcpy'),
+        ],
+      ),
+      content: SizedBox(
+        width: 580,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSection(scheme, 'Video', [
+                _buildSwitch('Bật video', 'Bật hoặc tắt luồng video',
+                    _opts.video, (v) => setState(() => _opts = _opts.copyWith(video: v))),
+                const SizedBox(height: 12),
+                _buildDropdown<String>(
+                  title: 'Độ phân giải',
+                  value: _opts.resolution,
+                  items: _resolutionOptions,
+                  onChanged: (v) => setState(
+                    () {
+                      _opts = _opts.copyWith(
+                        resolution: v!,
+                        customWidth: v == 'custom' ? _opts.customWidth : 1080,
+                        customHeight: v == 'custom' ? _opts.customHeight : 1920,
+                      );
+                      if (v != 'custom') {
+                        _customWidthCtrl.text = '1080';
+                        _customHeightCtrl.text = '1920';
+                      }
+                    },
+                  ),
+                ),
+                if (_isCustomResolution) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _customWidthCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: ' Rộng',
+                            labelStyle: TextStyle(color: scheme.onSurfaceVariant),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide:
+                                  BorderSide(color: scheme.outlineVariant),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide:
+                                  BorderSide(color: scheme.primary, width: 2),
+                            ),
+                          ),
+                          onChanged: (v) => setState(
+                            () =>
+                                _opts = _opts.copyWith(customWidth: int.tryParse(v) ?? 1080),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextField(
+                          controller: _customHeightCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: ' Cao',
+                            labelStyle: TextStyle(color: scheme.onSurfaceVariant),
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide:
+                                  BorderSide(color: scheme.outlineVariant),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide:
+                                  BorderSide(color: scheme.primary, width: 2),
+                            ),
+                          ),
+                          onChanged: (v) => setState(
+                            () => _opts =
+                                _opts.copyWith(customHeight: int.tryParse(v) ?? 1920),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 12),
+                _buildBitRateRow('Video bitrate', _bitRateCtrl,
+                    _opts.videoBitRate, (v) => setState(() => _opts = _opts.copyWith(videoBitRate: v))),
+                const SizedBox(height: 12),
+                _buildDropdown<String>(
+                  title: 'Video codec',
+                  value: _opts.videoCodec,
+                  items: _videoCodecOptions,
+                  onChanged: (v) =>
+                      setState(() => _opts = _opts.copyWith(videoCodec: v!)),
+                ),
+                const SizedBox(height: 12),
+                _buildSlider<int>(
+                  title: 'FPS tối đa',
+                  value: _opts.maxFps,
+                  min: 0,
+                  max: 120,
+                  step: 1,
+                  format: (v) => v == 0 ? 'Không giới hạn' : '$v fps',
+                  onChanged: (v) =>
+                      setState(() => _opts = _opts.copyWith(maxFps: v)),
+                ),
+              ]),
+              _buildDividing(scheme),
+              _buildSection(scheme, 'Âm thanh', [
+                _buildSwitch(
+                  'Bật âm thanh',
+                  'Phát âm thanh từ điện thoại ra loa máy tính',
+                  _isAudio,
+                  (v) => setState(() => _opts = _opts.copyWith(audio: v)),
+                ),
+                if (_isAudio) ...[
+                  const SizedBox(height: 12),
+                  _buildDropdown<String>(
+                    title: 'Audio codec',
+                    value: _opts.audioCodec,
+                    items: _audioCodecOptions,
+                    onChanged:
+                        (v) => setState(() => _opts = _opts.copyWith(audioCodec: v!)),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildBitRateRow('Audio bitrate', _audioBitRateCtrl,
+                      _opts.audioBitRate, (v) => setState(() => _opts = _opts.copyWith(audioBitRate: v))),
+                  const SizedBox(height: 12),
+                  _buildDropdown<String>(
+                    title: 'Nguồn âm thanh',
+                    value: _opts.audioSource,
+                    items: _audioSourceOptions,
+                    onChanged: (v) =>
+                        setState(() => _opts = _opts.copyWith(audioSource: v!)),
+                  ),
+                ],
+              ]),
+              _buildDividing(scheme),
+              _buildSection(scheme, 'Màn hình', [
+                _buildSwitch('Điều khiển (chuột/bàn phím)',
+                    'Mở rộng quyền kiểm soát để điều khiển điện thoại từ bàn phím',
+                    _opts.control, (v) => setState(() => _opts = _opts.copyWith(control: v))),
+                const SizedBox(height: 12),
+                _buildSwitch('Đồng bộ clipboard',
+                    'Cho phép sao chép/dán giữa máy tính và điện thoại',
+                    _opts.clipboardAutosync,
+                    (v) =>
+                        setState(() => _opts = _opts.copyWith(clipboardAutosync: v))),
+                const SizedBox(height: 12),
+                _buildSwitch('Giữ màn hình sáng',
+                    'Ngăn màn hình điện thoại tắt trong khi kết nối',
+                    _opts.stayAwake,
+                    (v) => setState(() => _opts = _opts.copyWith(stayAwake: v))),
+                const SizedBox(height: 12),
+                _buildSwitch('Hiển thị điểm chạm',
+                    'Hiển thị các chạm trên màn hình (tiện ghi màn hình)',
+                    _opts.showTouches,
+                    (v) =>
+                        setState(() => _opts = _opts.copyWith(showTouches: v))),
+                const SizedBox(height: 12),
+                _buildDropdown<String>(
+                  title: 'Xoay màn hình',
+                  value: _opts.angle.toString(),
+                  items: _angleOptions,
+                  onChanged: (v) => setState(
+                    () => _opts = _opts.copyWith(angle: int.tryParse(v!) ?? 0),
+                  ),
+                ),
+              ]),
+              _buildDividing(scheme),
+              _buildSection(scheme, 'Camera', [
+                _buildSwitch(
+                  'Camera mirroring',
+                  'Hiển thị camera sau của điện thoại trên màn hình',
+                  _isCameraMirror,
+                  (v) => setState(
+                    () => _opts = _opts.copyWith(cameraMirror: v),
+                  ),
+                ),
+              ]),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _opts),
+          child: const Text('Kết nối'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSection(
+    ColorScheme scheme,
+    String title,
+    List<Widget> children,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: scheme.primary,
+              textBaseline: TextBaseline.alphabetic,
+            ),
+          ),
+        ),
+        ...children,
+      ],
+    );
+  }
+
+  Widget _buildDividing(ColorScheme scheme) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Divider(color: scheme.outlineVariant, height: 1),
+      );
+
+  Widget _buildSwitch(
+    String label,
+    String description,
+    bool value,
+    ValueChanged<bool> onChanged,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Switch(value: value, onChanged: onChanged),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w500),
+              ),
+              Text(
+                description,
+                style: TextStyle(
+                    fontSize: 11, color: scheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDropdown<T>({
+    required String title,
+    required T value,
+    required List<T> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+              fontSize: 12, fontWeight: FontWeight.w500),
+        ),
+        const SizedBox(height: 4),
+        DropdownButtonFormField<T>(
+          initialValue: value,
+          decoration: InputDecoration(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide:
+                  BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
+            ),
+          ),
+          items: items.map((T v) => DropdownMenuItem<T>(
+                value: v,
+                child: Text(v.toString()),
+              )).toList(),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSlider<T extends num>({
+    required String title,
+    required T value,
+    required int min,
+    required int max,
+    required int step,
+    required String Function(T) format,
+    required ValueChanged<T> onChanged,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+            Text(
+              format(value),
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ),
+        Slider(
+          value: value.toDouble(),
+          min: min.toDouble(),
+          max: max.toDouble(),
+          divisions: max == 0 ? 1 : max,
+          label: format(value),
+          onChanged: (v) => onChanged(v.toInt() as T),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBitRateRow(
+    String label,
+    TextEditingController controller,
+    int value,
+    ValueChanged<int> onChanged,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              labelText: label,
+              labelStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide:
+                    BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide:
+                    BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
+              ),
+              helperText: _formatBitRate(value),
+              helperStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+            keyboardType: TextInputType.number,
+            onChanged: (v) => onChanged(_parseBitRate(v)),
+          ),
+        ),
+      ],
     );
   }
 }

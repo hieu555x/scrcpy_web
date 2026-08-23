@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../models/scrcpy_options.dart';
 import '../models/scrcpy_state.dart';
 
 /// Một phiên kết nối tới một thiết bị — mỗi phiên có iframe riêng biệt,
@@ -28,7 +29,8 @@ abstract class ScrcpyService {
   void Function(ScrcpySession session, ScrcpyState state)? onStateChanged;
 
   /// Tạo một phiên mới (iframe + platform view riêng cho thiết bị mới).
-  ScrcpySession createSession();
+  /// [options] là cấu hình scrcpy do người dùng chọn.
+  ScrcpySession createSession({ScrcpyOptions? options});
 
   /// Hủy phiên sau khi đóng tab tương ứng.
   void disposeSession(ScrcpySession session);

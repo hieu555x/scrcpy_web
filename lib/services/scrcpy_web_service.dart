@@ -2,6 +2,7 @@ import 'dart:js_interop';
 import 'dart:ui_web' as ui;
 import 'package:flutter/foundation.dart';
 import 'package:web/web.dart' as web;
+import '../models/scrcpy_options.dart';
 import '../models/scrcpy_state.dart';
 import 'scrcpy_service.dart';
 
@@ -19,10 +20,13 @@ class ScrcpyWebSession implements ScrcpySession {
   final ValueNotifier<ScrcpyState> state =
       ValueNotifier<ScrcpyState>(ScrcpyState.disconnected);
 
+  ScrcpyOptions options;
+
   ScrcpyWebSession({
     required this.id,
     required this.viewType,
     required this.iframe,
+    this.options = ScrcpyOptions.defaults,
   });
 
   @override
@@ -65,7 +69,7 @@ class ScrcpyWebService implements ScrcpyService {
   void Function(ScrcpySession session, ScrcpyState state)? onStateChanged;
 
   @override
-  ScrcpySession createSession() {
+  ScrcpySession createSession({ScrcpyOptions? options}) {
     final id = 'device-${_nextId++}';
     final viewType = 'scrcpy-view-$id';
 
@@ -83,6 +87,7 @@ class ScrcpyWebService implements ScrcpyService {
       id: id,
       viewType: viewType,
       iframe: iframe,
+      options: options ?? ScrcpyOptions.defaults,
     );
     _sessions[id] = session;
     _ensureListening();
