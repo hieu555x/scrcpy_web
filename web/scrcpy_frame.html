@@ -230,14 +230,39 @@
         touch-action: none;
       }
 
-      .disconnect-btn {
+      #top-actions {
         position: absolute;
         top: 12px;
         right: 16px;
         z-index: 10;
         display: none;
-        gap: 6px;
+        gap: 8px;
+      }
+
+      .action-btn {
+        background-color: rgba(59, 130, 246, 0.85);
+        color: white;
+        border: none;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .action-btn:hover {
+        background-color: #2563eb;
+      }
+
+      .action-btn:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+
+      .disconnect-btn {
+        display: inline-flex;
         align-items: center;
+        gap: 6px;
         background-color: rgba(220, 38, 38, 0.85);
         color: white;
         border: none;
@@ -425,6 +450,16 @@
                 <option value="270">270°</option>
               </select>
             </div>
+            <div class="option-row">
+              <div>
+                <div class="option-label">Tắt màn hình điện thoại</div>
+                <div class="option-desc">Điều khiển khi màn hình thật đã tắt</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="opt-screen-off">
+                <span class="slider"></span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -451,9 +486,14 @@
 
       <!-- Màn hình điện thoại sau khi khởi chạy thành công -->
       <div id="canvas-container">
-        <button id="btn-disconnect" class="disconnect-btn" title="Ngắt kết nối">
-          ✕ Ngắt kết nối
-        </button>
+        <div id="top-actions">
+          <button id="btn-screenshot" class="action-btn" title="Chụp toàn bộ màn hình điện thoại và lưu vào clipboard">
+            Chụp màn hình
+          </button>
+          <button id="btn-disconnect" class="disconnect-btn" title="Ngắt kết nối">
+            ✕ Ngắt kết nối
+          </button>
+        </div>
         <canvas id="video-canvas"></canvas>
       </div>
     </div>
@@ -469,6 +509,7 @@
         AndroidKeyCode,
         AndroidMotionEventAction,
         AndroidMotionEventButton,
+        AndroidScreenPowerMode,
         DefaultServerPath,
         ScrcpyAudioCodec,
         ScrcpyPointerId,
@@ -485,6 +526,8 @@
       const videoCanvas = document.getElementById("video-canvas");
       const statusText = document.getElementById("status-text");
       const btnDisconnect = document.getElementById("btn-disconnect");
+      const btnScreenshot = document.getElementById("btn-screenshot");
+      const topActions = document.getElementById("top-actions");
 
       let adbInstance = null;
       let scrcpyClient = null;
@@ -493,6 +536,7 @@
       let usbConnection = null;
       let isPointerDown = false;
       let isCleaningUp = false;
+      let screenTurnedOff = false;
       let controlsAttached = false;
       let videoWidth = 0;
       let videoHeight = 0;
@@ -549,6 +593,7 @@
           showTouches: document.getElementById("opt-show-touches").checked,
           angle: parseInt(document.getElementById("opt-angle").value) || 0,
           cameraMirror: document.getElementById("opt-camera-mirror").checked,
+          screenOff: document.getElementById("opt-screen-off").checked,
         };
       }
 
@@ -573,6 +618,7 @@
         document.getElementById("opt-show-touches").checked = opts.showTouches || false;
         document.getElementById("opt-angle").value = opts.angle || "0";
         document.getElementById("opt-camera-mirror").checked = opts.cameraMirror || false;
+        document.getElementById("opt-screen-off").checked = opts.screenOff || false;
         // Hiển thị hàng custom resolution nếu cần
         document.getElementById("custom-res-row").style.display =
           opts.resolution === "custom" ? "flex" : "none";
@@ -613,20 +659,6 @@
         });
       });
 
-      // CHẨN ĐOÁN: bắt MỌI pointerdown trong iframe từ pha capture,
-      // giúp phân biệt "sự kiện không vào được iframe" vs "sai target".
-      document.addEventListener(
-        "pointerdown",
-        (e) => {
-          const t = e.target;
-          console.warn(
-            "[frame] pointerdown →",
-            t && (t.id || t.tagName),
-          );
-        },
-        true,
-      );
-
       // Báo trạng thái về Flutter (window cha) — same-origin nên dùng origin cụ thể.
       function postState(state) {
         try {
@@ -636,9 +668,7 @@
               window.location.origin,
             );
           }
-        } catch (e) {
-          console.warn("postState failed:", e);
-        }
+        } catch (_) {}
       }
 
       function setStatus(text, isError = false) {
@@ -650,7 +680,7 @@
       function showError(message) {
         setupPanel.style.display = "flex";
         canvasContainer.style.display = "none";
-        btnDisconnect.style.display = "none";
+        topActions.style.display = "none";
         setStatus(message, true);
       }
 
@@ -662,7 +692,6 @@
           setStatus("Đang xin quyền truy cập USB...");
           const device =
             await AdbDaemonWebUsbDeviceManager.BROWSER.requestDevice();
-          console.warn("[connect] requestDevice xong:", !!device);
           if (!device) {
             setStatus("Bạn đã hủy chọn thiết bị.");
             return;
@@ -680,13 +709,8 @@
             const raw = device.raw ?? device;
             if (typeof raw.reset === "function") {
               await raw.reset();
-              console.warn("[connect] device.reset xong");
-            } else {
-              console.warn("[connect] device.reset không khả dụng — bỏ qua");
             }
-          } catch (e) {
-            console.warn("[connect] device.reset bỏ qua:", e.message);
-          }
+          } catch (_) {}
 
           const credentialStore = new AdbWebCredentialStore();
 
@@ -703,7 +727,6 @@
             }
             try {
               usbConnection = await device.connect();
-              console.warn(`[connect] USB connect xong (lần ${attempt})`);
               transport = await Promise.race([
                 AdbDaemonTransport.authenticate({
                   serial: device.serial,
@@ -714,9 +737,7 @@
                   setTimeout(() => reject(new Error("authenticate timeout")), 12000),
                 ),
               ]);
-              console.warn("[connect] tiếp tục sau authenticate");
             } catch (err) {
-              console.warn(`[connect] authenticate thất bại lần ${attempt}:`, err);
               // Phát hiện trường hợp tiến trình adb.exe trên PC đang chiếm USB
               if (/claimInterface|in use|in used/i.test(String(err))) {
                 usbBusy = true;
@@ -836,10 +857,23 @@
           // Khi server dừng bất ngờ: dọn dẹp và quay lại màn hình kết nối.
           scrcpyClient.exited
             .then(() => {
-              console.warn("Server exited");
               if (!isCleaningUp) cleanup("Máy chủ scrcpy đã dừng hoạt động.");
             })
-            .catch((e) => console.warn("Server exited with error:", e));
+            .catch(() => {});
+
+          // Đồng bộ clipboard: điện thoại copy → ghi vào clipboard máy tính.
+          // Stream chỉ có khi tùy chọn "Clipboard sync" đang bật.
+          if (scrcpyClient.clipboard) {
+            scrcpyClient.clipboard
+              .pipeTo(
+                new WritableStream({
+                  write(text) {
+                    navigator.clipboard.writeText(text).catch(() => {});
+                  },
+                }),
+              )
+              .catch(() => {});
+          }
 
           (async () => {
             if (!scrcpyClient.output) return;
@@ -848,7 +882,6 @@
               while (true) {
                 const { value, done } = await reader.read();
                 if (done) break;
-                if (value) console.log("[Server]", value);
               }
             } catch (e) {
               console.error("Server output error:", e);
@@ -856,22 +889,6 @@
           })();
 
           setStatus("Đang khởi động gương: 5/5 - Chuẩn bị luồng video...");
-          console.log(
-            "[debug] client đã khởi động — controller:",
-            !!scrcpyClient.controller,
-            "videoStream:",
-            !!scrcpyClient.videoStream,
-            "output:",
-            !!scrcpyClient.output,
-          );
-          if (scrcpyClient.controller) {
-            console.warn(
-              "[debug] controller methods:",
-              Object.getOwnPropertyNames(
-                Object.getPrototypeOf(scrcpyClient.controller),
-              ).join(", "),
-            );
-          }
 
           if (!scrcpyClient.videoStream) {
             throw new Error("Không tìm thấy luồng truyền video từ thiết bị.");
@@ -894,13 +911,12 @@
               );
             }),
           ]).finally(() => clearTimeout(timeoutId));
-          console.log("Video stream resolved, metadata:", videoStream.metadata);
 
           let renderer;
           if (WebGLVideoFrameRenderer.isSupported) {
-            renderer = new WebGLVideoFrameRenderer(videoCanvas);
+            // enableCapture: cho phép chụp nội dung canvas (toBlob/toDataURL)
+            renderer = new WebGLVideoFrameRenderer(videoCanvas, true);
           } else {
-            console.warn("WebGL không được hỗ trợ, sử dụng Bitmap renderer");
             renderer = new BitmapVideoFrameRenderer(videoCanvas);
           }
 
@@ -911,12 +927,6 @@
 
           videoWidth = videoStream.width || videoStream.metadata.width || 0;
           videoHeight = videoStream.height || videoStream.metadata.height || 0;
-          console.warn(
-            "[debug] kích thước video ban đầu:",
-            videoWidth,
-            "x",
-            videoHeight,
-          );
 
           videoDecoder.sizeChanged(({ width, height }) => {
             videoWidth = width;
@@ -930,7 +940,7 @@
 
           setupPanel.style.display = "none";
           canvasContainer.style.display = "flex";
-          btnDisconnect.style.display = "inline-flex";
+          topActions.style.display = "flex";
 
           videoStream.stream.pipeTo(videoDecoder.writable).catch((e) => {
             console.error("Lỗi pipe video stream:", e);
@@ -940,6 +950,18 @@
 
           setupControls();
           postState("connected");
+
+          // Tắt màn hình điện thoại nếu người dùng chọn (kênh điều khiển vẫn hoạt động)
+          if (userOpts.screenOff && scrcpyClient?.controller) {
+            try {
+              await scrcpyClient.controller.setScreenPowerMode(
+                AndroidScreenPowerMode.Off,
+              );
+              screenTurnedOff = true;
+            } catch (e) {
+              console.error("Không tắt được màn hình điện thoại:", e);
+            }
+          }
 
           // Âm thanh chạy nền song song video
           startAudio();
@@ -967,7 +989,7 @@
 
         // Reset UI trước để không kẹt người dùng
         canvasContainer.style.display = "none";
-        btnDisconnect.style.display = "none";
+        topActions.style.display = "none";
         setupPanel.style.display = "flex";
 
         const step = async (label, fn) => {
@@ -976,11 +998,21 @@
               Promise.resolve(fn()),
               new Promise((r) => setTimeout(r, 3000)),
             ]);
-            console.warn("[cleanup]", label, "xong");
-          } catch (e) {
-            console.warn("[cleanup]", label, "lỗi:", e);
-          }
+          } catch (_) {}
         };
+
+        // Bật lại màn hình điện thoại nếu trước đó đã tắt bằng option
+        if (screenTurnedOff && client?.controller) {
+          try {
+            await Promise.race([
+              client.controller.setScreenPowerMode(
+                AndroidScreenPowerMode.Normal,
+              ),
+              new Promise((r) => setTimeout(r, 2000)),
+            ]);
+          } catch (_) {}
+          screenTurnedOff = false;
+        }
 
         await step("client.close", () => client?.close?.());
 
@@ -1019,12 +1051,8 @@
 
       function setupControls() {
         if (!scrcpyClient || !scrcpyClient.controller) {
-          console.warn(
-            "[controls] KHÔNG có controller — control protocol chưa được bật?",
-          );
           return;
         }
-        console.warn("[controls] sẵn sàng");
 
         // Chỉ gắn listener MỘT lần duy nhất — nếu không sẽ nhân đôi
         // sau mỗi lần kết nối lại (1 click = N lần injectTouch).
@@ -1033,12 +1061,10 @@
 
         const sendTouch = async (action, e) => {
           if (!videoWidth || !videoHeight) {
-            console.warn("[touch] bỏ qua: chưa có kích thước video", videoWidth, videoHeight);
             return;
           }
           const controller = scrcpyClient?.controller;
           if (!controller) {
-            console.warn("[touch] bỏ qua: không có controller");
             return;
           }
 
@@ -1053,7 +1079,6 @@
           );
 
           try {
-            const t0 = performance.now();
             const SENTINEL = Symbol("timeout");
             const p = controller.injectTouch({
               action,
@@ -1079,15 +1104,6 @@
               console.error(
                 `[touch] injectTouch TREO >5000ms (x:${x.toFixed(0)}, y:${y.toFixed(0)}) — kênh control không phản hồi!`,
               );
-            } else {
-              console.warn(
-                `[touch] injectTouch OK sau ${(performance.now() - t0).toFixed(0)}ms — action:`,
-                action,
-                "x:",
-                x.toFixed(0),
-                "y:",
-                y.toFixed(0),
-              );
             }
           } catch (err) {
             console.error("injectTouch failed:", err);
@@ -1106,10 +1122,6 @@
             return;
           }
           isPointerDown = true;
-          console.warn(
-            "[touch] pointerdown trên canvas — pointerType:",
-            e.pointerType,
-          );
           await sendTouch(AndroidMotionEventAction.Down, e);
         });
 
@@ -1252,21 +1264,17 @@
       async function startAudio() {
         try {
           if (!scrcpyClient?.audioStream) {
-            console.warn("[audio] không có luồng âm thanh (thiết bị không hỗ trợ)");
             return;
           }
           // LƯU Ý: client.audioStream là Promise của CHÍNH object metadata
           // (khác với videoStream vốn có thuộc tính .metadata riêng).
           const meta = await scrcpyClient.audioStream;
           if (meta.type === "disabled" || meta.type === "errored") {
-            console.warn("[audio] thiết bị không hỗ trợ ghi âm:", meta.type);
             return;
           }
           const codec = meta.codec;
-          console.warn("[audio] codec:", codec.webCodecId);
 
           if (codec === ScrcpyAudioCodec.Raw) {
-            console.warn("[audio] codec Raw chưa được hỗ trợ — bỏ qua");
             return;
           }
 
@@ -1303,11 +1311,6 @@
                 config.description = packet.data.slice();
                 createAndConfigureDecoder();
                 deviceCsdUsed = true;
-                console.warn(
-                  "[audio] cấu hình bằng csd thực từ thiết bị:",
-                  packet.data.length,
-                  "bytes",
-                );
               }
               continue;
             }
@@ -1318,9 +1321,6 @@
               if (codec === ScrcpyAudioCodec.Opus) {
                 config.description = buildOpusDescription();
                 createAndConfigureDecoder();
-                console.warn(
-                  "[audio] cấu hình bằng OpusHead tổng hợp (fallback)",
-                );
               } else {
                 continue;
               }
@@ -1343,7 +1343,34 @@
         window.addEventListener("keydown", async (e) => {
           const controller = scrcpyClient?.controller;
           if (!controller) return;
-          // Giữ nguyên tổ hợp phím của trình duyệt (Ctrl+C/V, F5...).
+
+          // Ctrl+V / Cmd+V: dán clipboard máy tính vào ô nhập đang focus trên điện thoại.
+          if (
+            (e.ctrlKey || e.metaKey) &&
+            !e.altKey &&
+            !e.shiftKey &&
+            (e.key === "v" || e.key === "V")
+          ) {
+            e.preventDefault();
+            try {
+              const text = await navigator.clipboard.readText();
+              if (!text) {
+                return;
+              }
+              // sequence: 0n (BigInt) = không cần ack từ server.
+              await controller.setClipboard({
+                content: text,
+                paste: true,
+                sequence: 0n,
+              });
+            } catch (err) {
+              console.error("[kbd] paste failed:", err);
+              setStatus("Không đọc được clipboard trình duyệt: " + err.message, true);
+            }
+            return;
+          }
+
+          // Giữ nguyên tổ hợp phím còn lại của trình duyệt (Ctrl+C, F5...).
           if (e.ctrlKey || e.metaKey || e.altKey) return;
           if (e.isComposing) return; // đang gõ IME (vd: tiếng Việt)
 
@@ -1363,7 +1390,6 @@
                 repeat: 0,
                 metaState: 0,
               });
-              console.warn("[kbd] key:", e.key);
             } catch (err) {
               console.error("[kbd] injectKeyCode failed:", e.key, err);
             }
@@ -1375,7 +1401,6 @@
             e.preventDefault();
             try {
               await controller.injectText(e.key);
-              console.warn("[kbd] text:", JSON.stringify(e.key));
             } catch (err) {
               console.error("[kbd] injectText failed:", e.key, err);
             }
@@ -1392,11 +1417,9 @@
 
       async function sendNavKey(name) {
         const controller = scrcpyClient?.controller;
-        console.warn("[nav]", name, "— controller:", !!controller);
         if (!controller) return;
         const keyCode = NAV_KEY_CODES[name];
         if (!keyCode) {
-          console.warn("[nav] không biết phím:", name);
           return;
         }
         const t0 = performance.now();
@@ -1420,10 +1443,6 @@
             console.error(
               `[nav] ${name} TREO >5000ms — kênh control không phản hồi!`,
             );
-          } else {
-            console.warn(
-              `[nav] ${name} hoàn tất sau ${(performance.now() - t0).toFixed(0)}ms`,
-            );
           }
         } catch (e) {
           console.error(`${name} failed sau ${(performance.now() - t0).toFixed(0)}ms:`, e);
@@ -1432,15 +1451,40 @@
 
       btnDisconnect.addEventListener("click", () => cleanup());
 
+      // Chụp toàn bộ màn hình điện thoại (khung hình video gốc) và lưu vào clipboard.
+      function showButtonFeedback(button, text) {
+        const original = button.textContent;
+        button.textContent = text;
+        setTimeout(() => {
+          button.textContent = original;
+          button.disabled = false;
+        }, 1500);
+      }
+
+      btnScreenshot.addEventListener("click", async () => {
+        if (!scrcpyClient || !videoWidth || !videoHeight) return;
+        btnScreenshot.disabled = true;
+        try {
+          const blob = await new Promise((resolve, reject) =>
+            videoCanvas.toBlob(
+              (b) =>
+                b ? resolve(b) : reject(new Error("Không tạo được ảnh từ khung hình")),
+              "image/png",
+            ),
+          );
+          await navigator.clipboard.write([
+            new ClipboardItem({ "image/png": blob }),
+          ]);
+          showButtonFeedback(btnScreenshot, "✓ Đã chép vào clipboard");
+        } catch (e) {
+          console.error("Lỗi chụp màn hình:", e);
+          showButtonFeedback(btnScreenshot, "✕ Lỗi chụp màn hình");
+        }
+      });
+
       // 5. Nhận sự kiện từ Flutter (phím điều hướng, ngắt kết nối).
       //    Đăng ký MỘT lần duy nhất ở mức top-level, có kiểm tra nguồn gốc.
       window.addEventListener("message", async (event) => {
-        console.warn(
-          "[frame] nhận message — origin khớp:",
-          event.origin === window.location.origin,
-          "type:",
-          event.data?.type,
-        );
         if (event.origin !== window.location.origin) return;
         if (event.source !== window.parent) return;
 

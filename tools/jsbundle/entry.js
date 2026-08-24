@@ -9,6 +9,7 @@ export {
   AndroidKeyCode,
   AndroidMotionEventAction,
   AndroidMotionEventButton,
+  AndroidScreenPowerMode,
   DefaultServerPath,
   ScrcpyAudioCodec,
   ScrcpyPointerId,
