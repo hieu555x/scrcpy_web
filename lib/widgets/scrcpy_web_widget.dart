@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../services/scrcpy_service.dart';
 import '../services/scrcpy_service_stub.dart'
     if (dart.library.js_interop) '../services/scrcpy_web_service.dart';
 import '../viewmodels/scrcpy_sessions_view_model.dart';
@@ -94,6 +95,8 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
     if (sessions.isEmpty) return _buildEmpty(context);
 
     final scheme = Theme.of(context).colorScheme;
+    // Từ 2 phiên trở lên: các màn hình hiển thị cạnh nhau (chia cột đều).
+    final gridMode = sessions.length > 1;
 
     return Column(
       children: [
@@ -130,18 +133,74 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
               ),
               child: ClipRRect(
                 borderRadius: const BorderRadius.all(Radius.circular(15)),
-                child: IndexedStack(
-                  index: _viewModel.activeIndex,
+                child: Stack(
+                  clipBehavior: Clip.hardEdge,
                   children: [
-                    for (final session in sessions)
-                      HtmlElementView(viewType: session.viewType),
+                    // Platform view DUY NHẤT chứa mọi iframe — const nên
+                    // không bao giờ bị tạo lại; layout điều khiển bằng CSS.
+                    const Positioned.fill(
+                      child: HtmlElementView(viewType: kScrcpyHostViewType),
+                    ),
+                    // Nhãn + đường phân cách khi hiển thị cạnh nhau
+                    if (gridMode)
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              final count = sessions.length;
+                              final colWidth = constraints.maxWidth / count;
+                              return Stack(
+                                children: [
+                                  for (var i = 0; i < count; i++)
+                                    Positioned(
+                                      top: 8,
+                                      left: i * colWidth + 8,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              scheme.primary.withAlpha(220),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: Text(
+                                          'Thiết bị ${i + 1}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: scheme.onPrimary,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  for (var i = 1; i < count; i++)
+                                    Positioned(
+                                      top: 0,
+                                      left: i * colWidth - 0.5,
+                                      width: 1,
+                                      height: constraints.maxHeight,
+                                      child: ColoredBox(
+                                        color: scheme.outlineVariant,
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
             ),
           ),
         ),
-        _buildControlBar(),
+        // Thanh điều khiển: mỗi vùng màn hình một thanh riêng, chia đều
+        // theo đúng tỷ lệ các cột phía trên và điều khiển thiết bị của vùng đó.
+        _buildBottomControls(),
       ],
     );
   }
@@ -231,53 +290,64 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
     );
   }
 
-  Widget _buildControlBar() {
-    final active = _viewModel.active;
-    if (active == null) return const SizedBox.shrink();
-
+  /// Vùng thanh điều khiển phía dưới: chia đều cho từng thiết bị.
+  Widget _buildBottomControls() {
     final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final session in _viewModel.sessions)
+            Expanded(child: _sessionControlBar(session, scheme)),
+        ],
+      ),
+    );
+  }
 
+  /// Thanh điều khiển của một thiết bị: hiện khi thiết bị đang kết nối,
+  /// các nút tác động đúng lên phiên của vùng này.
+  Widget _sessionControlBar(ScrcpySession session, ColorScheme scheme) {
     return ValueListenableBuilder<ScrcpyState>(
-      valueListenable: active.state,
+      valueListenable: session.state,
       builder: (context, state, _) {
         if (state != ScrcpyState.connected) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest.withAlpha(80),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: scheme.outlineVariant, width: 1),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildNavButton(
-                  Icons.chevron_left,
-                  'Back',
-                  () => active.sendKeyEvent('back'),
-                ),
-                const SizedBox(width: 24),
-                _buildNavButton(
-                  Icons.home,
-                  'Home',
-                  () => active.sendKeyEvent('home'),
-                ),
-                const SizedBox(width: 24),
-                _buildNavButton(
-                  Icons.apps,
-                  'Apps',
-                  () => active.sendKeyEvent('apps'),
-                ),
-                const SizedBox(width: 24),
-                _buildNavButton(
-                  Icons.link_off,
-                  'Ngắt kết nối',
-                  () => active.disconnect(),
-                ),
-              ],
-            ),
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHighest.withAlpha(80),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: scheme.outlineVariant, width: 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildNavButton(
+                Icons.chevron_left,
+                'Back',
+                () => session.sendKeyEvent('back'),
+              ),
+              const SizedBox(width: 12),
+              _buildNavButton(
+                Icons.home,
+                'Home',
+                () => session.sendKeyEvent('home'),
+              ),
+              const SizedBox(width: 12),
+              _buildNavButton(
+                Icons.apps,
+                'Apps',
+                () => session.sendKeyEvent('apps'),
+              ),
+              const SizedBox(width: 12),
+              _buildNavButton(
+                Icons.link_off,
+                'Ngắt kết nối',
+                () => session.disconnect(),
+              ),
+            ],
           ),
         );
       },

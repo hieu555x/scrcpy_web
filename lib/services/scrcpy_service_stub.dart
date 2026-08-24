@@ -39,6 +39,12 @@ class ScrcpyServiceStub implements ScrcpyService {
 
   @override
   void disposeSession(ScrcpySession session) {}
+
+  @override
+  void applyLayout({required bool sideBySide}) {}
+
+  @override
+  void markActive(ScrcpySession session) {}
 }
 
 ScrcpyService get scrcpyService => ScrcpyServiceStub();

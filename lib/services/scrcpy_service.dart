@@ -2,6 +2,9 @@ import 'package:flutter/foundation.dart';
 import '../models/scrcpy_options.dart';
 import '../models/scrcpy_state.dart';
 
+/// ViewType của platform view duy nhất chứa tất cả iframe (chỉ dùng trên web).
+const String kScrcpyHostViewType = 'scrcpy-frame-host';
+
 /// Một phiên kết nối tới một thiết bị — mỗi phiên có iframe riêng biệt,
 /// nhờ đó có thể kết nối nhiều điện thoại cùng lúc.
 abstract class ScrcpySession {
@@ -32,6 +35,12 @@ abstract class ScrcpyService {
   /// [options] là cấu hình scrcpy do người dùng chọn.
   ScrcpySession createSession({ScrcpyOptions? options});
 
-  /// Hủy phiên sau khi đóng tab tương ứng.
+  /// Hủy phiên: ngắt kết nối và gỡ iframe khỏi container.
   void disposeSession(ScrcpySession session);
+
+  /// Chuyển layout hiển thị: một phiên toàn màn hình hoặc tất cả cạnh nhau.
+  void applyLayout({required bool sideBySide});
+
+  /// Đánh dấu phiên đang hoạt động (layout tab sẽ hiển thị phiên này).
+  void markActive(ScrcpySession session);
 }

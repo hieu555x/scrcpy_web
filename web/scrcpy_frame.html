@@ -230,12 +230,18 @@
         touch-action: none;
       }
 
+      canvas:focus {
+        outline: none;
+      }
+
       #top-actions {
         position: absolute;
         top: 12px;
         right: 16px;
         z-index: 10;
         display: none;
+        flex-direction: column;
+        align-items: flex-end;
         gap: 8px;
       }
 
@@ -487,14 +493,14 @@
       <!-- Màn hình điện thoại sau khi khởi chạy thành công -->
       <div id="canvas-container">
         <div id="top-actions">
-          <button id="btn-screenshot" class="action-btn" title="Chụp toàn bộ màn hình điện thoại và lưu vào clipboard">
-            Chụp màn hình
-          </button>
           <button id="btn-disconnect" class="disconnect-btn" title="Ngắt kết nối">
             ✕ Ngắt kết nối
           </button>
+          <button id="btn-screenshot" class="action-btn" title="Chụp toàn bộ màn hình điện thoại và lưu vào clipboard">
+            Chụp màn hình
+          </button>
         </div>
-        <canvas id="video-canvas"></canvas>
+        <canvas id="video-canvas" tabindex="-1"></canvas>
       </div>
     </div>
 
@@ -951,6 +957,9 @@
           setupControls();
           postState("connected");
 
+          // Nhận focus ngay sau khi kết nối để bàn phím tác động đúng thiết bị này
+          videoCanvas.focus({ preventScroll: true });
+
           // Tắt màn hình điện thoại nếu người dùng chọn (kênh điều khiển vẫn hoạt động)
           if (userOpts.screenOff && scrcpyClient?.controller) {
             try {
@@ -1112,6 +1121,10 @@
 
         videoCanvas.addEventListener("pointerdown", async (e) => {
           e.preventDefault();
+          // preventDefault chặn việc trình duyệt tự chuyển focus sang iframe
+          // này khi nhấn chuột — phải focus thủ công để bàn phím/Ctrl+V
+          // luôn tác động đúng thiết bị đang được click.
+          videoCanvas.focus();
           // Giống scrcpy desktop: chuột phải = Back, chuột giữa = Home
           if (e.button === 2) {
             await sendNavKey("back");

@@ -6,7 +6,8 @@ import '../models/scrcpy_options.dart';
 import '../models/scrcpy_state.dart';
 import 'scrcpy_service.dart';
 
-/// Một phiên kết nối trên web: một iframe scrcpy_frame.html riêng.
+/// Một phiên kết nối trên web: một iframe scrcpy_frame.html riêng,
+/// được gắn vào container HTML dùng chung (xem [ScrcpyWebService]).
 class ScrcpyWebSession implements ScrcpySession {
   @override
   final String id;
@@ -52,8 +53,11 @@ class ScrcpyWebSession implements ScrcpySession {
   }
 }
 
-/// Web implementation: mỗi phiên có iframe riêng, cho phép nhiều thiết bị
-/// kết nối đồng thời. Message từ iframe được định tuyến theo nguồn.
+/// Web implementation: TẤT CẢ các iframe được gắn vào MỘT thẻ <div> container
+/// duy nhất đăng ký làm platform view. Layout được điều khiển thuần bằng CSS
+/// (`layout-tabs`: một iframe toàn màn hình · `layout-grid`: chia cột cạnh
+/// nhau) — iframe không bao giờ bị Flutter tháo/gắn lại nên kết nối
+/// USB/scrcpy luôn được giữ nguyên khi chuyển đổi bố cục.
 class ScrcpyWebService implements ScrcpyService {
   static final ScrcpyWebService instance = ScrcpyWebService._();
 
@@ -64,24 +68,56 @@ class ScrcpyWebService implements ScrcpyService {
   final Map<String, ScrcpyWebSession> _sessions = {};
   int _nextId = 0;
   bool _listening = false;
+  bool _registered = false;
+
+  late final web.HTMLDivElement _host = _createHost();
+
+  web.HTMLDivElement _createHost() {
+    final host = web.document.createElement('div') as web.HTMLDivElement
+      ..className = 'scrcpy-frame-host layout-tabs';
+    _injectStyles();
+    return host;
+  }
+
+  void _injectStyles() {
+    final style = web.document.createElement('style') as web.HTMLStyleElement;
+    style.textContent = '''
+.scrcpy-frame-host { position: relative; width: 100%; height: 100%; }
+.scrcpy-frame-host .scrcpy-frame { display: block; width: 100%; height: 100%; border: none; background: #000; }
+.scrcpy-frame-host.layout-tabs .scrcpy-frame { display: none; }
+.scrcpy-frame-host.layout-tabs .scrcpy-frame.active { display: block; }
+.scrcpy-frame-host.layout-grid { display: flex; flex-direction: row; }
+.scrcpy-frame-host.layout-grid .scrcpy-frame { flex: 1 1 0%; min-width: 0; border-right: 1px solid rgba(128, 128, 128, 0.35); }
+.scrcpy-frame-host.layout-grid .scrcpy-frame:last-child { border-right: none; }
+''';
+    web.document.head?.append(style);
+  }
+
+  void _ensureRegistered() {
+    if (_registered) return;
+    _registered = true;
+    // ignore: undefined_prefixed_name
+    ui.platformViewRegistry.registerViewFactory(
+      kScrcpyHostViewType,
+      (int viewId) => _host,
+    );
+  }
 
   @override
   void Function(ScrcpySession session, ScrcpyState state)? onStateChanged;
 
   @override
   ScrcpySession createSession({ScrcpyOptions? options}) {
+    _ensureRegistered();
     final id = 'device-${_nextId++}';
     final viewType = 'scrcpy-view-$id';
 
     final iframe = web.HTMLIFrameElement()
       ..src = 'scrcpy_frame.html'
-      ..style.border = 'none'
-      ..style.width = '100%'
-      ..style.height = '100%'
-      ..setAttribute('allow', 'usb');
+      ..className = 'scrcpy-frame'
+      ..setAttribute('allow', 'usb; clipboard-write; clipboard-read');
 
-    // ignore: undefined_prefixed_name
-    ui.platformViewRegistry.registerViewFactory(viewType, (int viewId) => iframe);
+    _host.append(iframe);
 
     final session = ScrcpyWebSession(
       id: id,
@@ -91,12 +127,27 @@ class ScrcpyWebService implements ScrcpyService {
     );
     _sessions[id] = session;
     _ensureListening();
+    markActive(session);
     return session;
   }
 
   @override
   void disposeSession(ScrcpySession session) {
     _sessions.remove(session.id);
+    (session as ScrcpyWebSession).iframe.remove();
+  }
+
+  @override
+  void applyLayout({required bool sideBySide}) {
+    _host.className =
+        'scrcpy-frame-host ${sideBySide ? 'layout-grid' : 'layout-tabs'}';
+  }
+
+  @override
+  void markActive(ScrcpySession session) {
+    for (final s in _sessions.values) {
+      s.iframe.classList.toggle('active', identical(s, session));
+    }
   }
 
   void _ensureListening() {

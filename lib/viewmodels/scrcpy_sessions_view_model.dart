@@ -37,11 +37,13 @@ class ScrcpySessionsViewModel extends ChangeNotifier {
   }
 
   /// Thêm một phiên mới với [options] hiện tại và chuyển tới nó.
+  /// Từ 2 phiên trở lên, các màn hình sẽ hiển thị cạnh nhau (grid).
   ScrcpySession addSession({ScrcpyOptions? options}) {
     final resolvedOptions = options ?? _currentOptions;
     final session = service.createSession(options: resolvedOptions);
     sessions.add(session);
     _activeIndex = sessions.length - 1;
+    _syncDom();
     notifyListeners();
     return session;
   }
@@ -49,7 +51,16 @@ class ScrcpySessionsViewModel extends ChangeNotifier {
   void setActive(int index) {
     if (index < 0 || index >= sessions.length || index == _activeIndex) return;
     _activeIndex = index;
+    _syncDom();
     notifyListeners();
+  }
+
+  /// Đồng bộ layout + phiên active xuống tầng HTML (thuần CSS, không đụng iframe):
+  /// 1 phiên → toàn màn hình · từ 2 phiên → chia cột hiển thị cạnh nhau.
+  void _syncDom() {
+    final activeSession = active;
+    if (activeSession != null) service.markActive(activeSession);
+    service.applyLayout(sideBySide: sessions.length > 1);
   }
 
   /// Đóng phiên: ngắt kết nối thiết bị trước khi gỡ tab.
@@ -71,6 +82,7 @@ class ScrcpySessionsViewModel extends ChangeNotifier {
       _activeIndex = sessions.length - 1;
     }
     if (_activeIndex < 0) _activeIndex = 0;
+    _syncDom();
     notifyListeners();
   }
 
