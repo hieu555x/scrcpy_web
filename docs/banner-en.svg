@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-label="Scrcpy Web - Android control deck in your browser">
+  <rect width="1200" height="280" rx="24" fill="#0F1211"/>
+  <rect x="1" y="1" width="1198" height="278" rx="23" fill="none" stroke="#29332E" stroke-width="2"/>
+
+  <!-- Signal rail: three status dots (signal dot motif) -->
+  <circle cx="1120" cy="52" r="7" fill="#3FD68F"/>
+  <circle cx="1120" cy="52" r="13" fill="none" stroke="#3FD68F" stroke-opacity="0.35" stroke-width="2"/>
+  <circle cx="1148" cy="52" r="6" fill="#E8B44A"/>
+  <circle cx="1174" cy="52" r="5" fill="#F0716C"/>
+
+  <!-- Brand mark: mint squircle + signal dot -->
+  <rect x="72" y="88" width="72" height="72" rx="18" fill="#3FD68F"/>
+  <circle cx="108" cy="124" r="11" fill="#0F1211"/>
+  <circle cx="108" cy="124" r="17" fill="none" stroke="#0F1211" stroke-opacity="0.35" stroke-width="3"/>
+
+  <!-- Wordmark -->
+  <text x="168" y="140" font-family="'Space Grotesk','Segoe UI',system-ui,-apple-system,sans-serif" font-size="58" font-weight="700" letter-spacing="-1" fill="#EAEEEB">Scrcpy Web</text>
+
+  <!-- WEBUSB badge -->
+  <rect x="170" y="160" width="96" height="26" rx="6" fill="none" stroke="#364139" stroke-width="1.5"/>
+  <text x="218" y="178" text-anchor="middle" font-family="'JetBrains Mono','Cascadia Mono',Consolas,monospace" font-size="13" font-weight="600" letter-spacing="2.5" fill="#9BA59E">WEBUSB</text>
+
+  <!-- Tagline -->
+  <text x="74" y="232" font-family="'Inter','Segoe UI',system-ui,sans-serif" font-size="21" fill="#9BA59E">Screen mirroring · Audio · Mouse &amp; keyboard control — right in your browser</text>
+</svg>

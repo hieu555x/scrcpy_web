@@ -1,61 +1,65 @@
 ﻿<div align="center">
 
-<img src="docs/banner.svg" alt="Scrcpy Web — Bàn điều khiển Android trong trình duyệt" width="720">
+<img src="docs/banner-en.svg" alt="Scrcpy Web — Android control deck in your browser" width="720">
 
-**Điều khiển điện thoại Android trực tiếp từ trình duyệt — không cần cài phần mềm**
+**Control your Android phone straight from the browser — no installs required**
+
+English · [Tiếng Việt](README.vi.md)
 
 [![Flutter](https://img.shields.io/badge/Flutter-Web-3FD68F?style=flat-square&logo=flutter&logoColor=EAEEEB&labelColor=161B19)](https://flutter.dev)
 [![scrcpy](https://img.shields.io/badge/scrcpy--server-3.3.3-12A463?style=flat-square&labelColor=161B19)](https://github.com/Genymobile/scrcpy)
 [![WebUSB](https://img.shields.io/badge/Chrome%20%2F%20Edge-81%2B-4285F4?style=flat-square&logo=googlechrome&logoColor=EAEEEB&labelColor=161B19)](https://developer.mozilla.org/docs/Web/API/WebUSB_API)
-[![License](https://img.shields.io/badge/License-MIT-5C665F?style=flat-square&labelColor=161B19)](#giấy-phép)
+[![License](https://img.shields.io/badge/License-MIT-5C665F?style=flat-square&labelColor=161B19)](#license)
 
 </div>
 
 ---
 
-| Trang chủ | Panel kết nối | Giao diện sáng |
+| Home | Connect panel | Light mode |
 |:---:|:---:|:---:|
-| ![Trang chủ](docs/screenshots/home-dark.png) | ![Panel kết nối](docs/screenshots/connect-panel-dark.png) | ![Giao diện sáng](docs/screenshots/home-light.png) |
+| ![Home](docs/screenshots/home-dark.png) | ![Connect panel](docs/screenshots/connect-panel-dark.png) | ![Light mode](docs/screenshots/home-light.png) |
 
-Kết nối qua **WebUSB** (ADB over USB) · Mirror màn hình real-time · Âm thanh · Điều khiển chuột & bàn phím
+Connects over **WebUSB** (ADB over USB) · Real-time screen mirroring · Audio forwarding · Mouse & keyboard control
 
-## Tại sao Scrcpy Web?
+> **Note:** the in-app interface is Vietnamese-first. The app itself is fully usable regardless — the connect flow is three clicks.
 
-scrcpy desktop mạnh nhưng phải cài đặt; Vysor phải trả phí cho chất lượng tốt. Scrcpy Web chạy thẳng trong tab trình duyệt: **cắm cáp là mirror** — không cài client, không driver, không tài khoản, mọi thư viện được bundle cục bộ (không phụ thuộc CDN lúc runtime).
+## Why Scrcpy Web?
 
-## Tính năng
+Desktop scrcpy is powerful but requires an install; Vysor charges for decent quality. Scrcpy Web runs in a browser tab: **plug in a cable and start mirroring** — no client to install, no drivers, no accounts, and all libraries are bundled locally (zero CDN dependency at runtime).
+
+## Features
 
 | | |
 |---|---|
-| **Đa thiết bị** | Kết nối nhiều điện thoại cùng lúc — mỗi thiết bị một tab, hiển thị cạnh nhau hoặc toàn màn hình |
-| **Mirror real-time** | WebCodecs + WebGL giải mã H.264 / H.265 / AV1, tới 120 fps |
-| **Âm thanh** | Truyền âm thanh điện thoại ra loa máy tính (Opus / AAC / Raw) |
-| **Điều khiển chuột** | Click / kéo / cuộn; chuột phải = Back, chuột giữa = Home — giống scrcpy desktop |
-| **Bàn phím PC → Android** | Gõ ký tự trực tiếp, phím điều hướng, Esc = Back |
-| **Tắt màn hình điện thoại** | Điều khiển khi màn hình thật đã tắt — bật lại tự động khi ngắt kết nối |
-| **Chụp màn hình** | Lưu khung hình gốc của điện thoại vào clipboard máy tính |
-| **Cấu hình linh hoạt** | Độ phân giải, bitrate, FPS, codec, xoay màn hình, camera mirroring — tự lưu vào localStorage |
-| **Clipboard sync** | Sao chép / dán hai chiều giữa máy tính và điện thoại |
-| **Giao diện** | Dark / Light mode đồng bộ cả shell lẫn canvas, responsive |
+| **Multi-device** | Connect several phones at once — one tab per device, view side-by-side or full screen |
+| **Real-time mirroring** | WebCodecs + WebGL decoding for H.264 / H.265 / AV1, up to 120 fps |
+| **Audio** | Forward phone audio to your computer speakers (Opus / AAC / Raw) |
+| **Mouse control** | Click / drag / scroll; right-click = Back, middle-click = Home — same as scrcpy desktop |
+| **PC keyboard → Android** | Type directly, navigation keys, Esc = Back |
+| **Turn off the phone screen** | Keep controlling while the physical screen is off — it turns back on automatically on disconnect |
+| **Screenshots** | Save the phone's original-resolution frame to your computer's clipboard |
+| **Flexible configuration** | Resolution, bitrate, FPS, codec, rotation, camera mirroring — saved to localStorage automatically |
+| **Clipboard sync** | Two-way copy/paste between computer and phone |
+| **Interface** | Dark / Light mode synced across shell and canvas, responsive |
 
-## Bắt đầu nhanh
+## Quick start
 
-1. Mở ứng dụng trên trình duyệt **Chrome / Edge 81+**
-2. Trên điện thoại: bật **Gỡ lỗi USB** (Cài đặt › Tuỳ chọn nhà phát triển)
-3. Cắm cáp dữ liệu vào máy tính, nhấn **Kết nối thiết bị**
-4. Chọn thiết bị trong hộp thoại quyền USB của trình duyệt
-5. Xác nhận quyền gỡ lỗi trên màn hình điện thoại — bắt đầu điều khiển!
+1. Open the app in **Chrome / Edge 81+**
+2. On the phone: enable **USB debugging** (Settings › Developer options)
+3. Connect a data cable to your computer and press **Connect device**
+4. Pick the device in the browser's USB permission dialog
+5. Confirm the debugging prompt on the phone — start controlling!
 
-### Yêu cầu hệ thống
+### Requirements
 
-| Thành phần | Yêu cầu |
+| Component | Requirement |
 |---|---|
-| Trình duyệt | Chrome 81+ hoặc Edge 81+ (hỗ trợ WebUSB) |
-| Android | Đã bật **Gỡ lỗi USB (USB Debugging)** |
-| Cáp | Dây USB hỗ trợ truyền dữ liệu (không phải cáp sạc thường) |
-| Hosting | Trang phải chạy qua `https://` hoặc `localhost` (WebUSB yêu cầu secure context) |
+| Browser | Chrome 81+ or Edge 81+ (WebUSB support) |
+| Android | **USB Debugging** enabled |
+| Cable | A data-capable USB cable (not a charge-only cable) |
+| Hosting | The page must be served over `https://` or `localhost` (WebUSB requires a secure context) |
 
-### Cài đặt
+### Setup
 
 ```bash
 git clone <repository-url>
@@ -65,148 +69,148 @@ flutter pub get
 flutter run -d chrome
 ```
 
-## Sử dụng
+## Usage
 
-### Điều khiển bằng bàn phím & chuột
+### Keyboard & mouse control
 
-| Hành động | Cách thao tác |
+| Action | How |
 |---|---|
-| Back | Phím `Esc` hoặc **chuột phải** trên canvas |
-| Home | **Chuột giữa** trên canvas |
-| Gõ văn bản | Gõ trực tiếp khi canvas đang focus |
-| Cuộn | Con lăn chuột |
-| Chụp màn hình | Nút **Chụp màn hình** góc phải canvas → ảnh vào clipboard máy tính |
+| Back | `Esc` key or **right-click** on the canvas |
+| Home | **Middle-click** on the canvas |
+| Type text | Type directly while the canvas has focus |
+| Scroll | Mouse wheel |
+| Screenshot | **Screenshot** button at the canvas top-right → image goes to your computer's clipboard |
 
-> **Thêm thiết bị khác:** nhấn **Kết nối thiết bị** trên thanh app để mở tab mới.
-> Từ 2 thiết bị, các màn hình tự chia cột hiển thị cạnh nhau; dock dưới điều khiển đúng thiết bị của từng cột.
-> **Ngắt kết nối:** nút **Ngắt kết nối** trên dock hoặc **✕ Ngắt kết nối** góc phải canvas.
+> **Add another device:** press **Connect device** in the top bar to open a new tab.
+> With 2+ devices, screens are automatically split into columns; each dock section below controls the device in its column.
+> **Disconnect:** the **Disconnect** button in the dock or **✕ Disconnect** at the canvas top-right.
 
-## Kiến trúc
+## Architecture
 
 ```
-Trình duyệt (Chrome / Edge 81+)
+Browser (Chrome / Edge 81+)
 │
-├─ Flutter shell ── top bar · tab thiết bị · dock điều khiển
+├─ Flutter shell ── top bar · device tabs · control dock
 │        ▲
-│        │ postMessage (same-origin, kiểm tra origin hai chiều)
+│        │ postMessage (same-origin, verified in both directions)
 │        ▼
-├─ iframe scrcpy_frame.html  ← mỗi thiết bị MỘT iframe độc lập
-│        │                      (không bao giờ bị tháo/gắn lại khi
-│        │                       chuyển tab hay đổi bố cục)
+├─ iframe scrcpy_frame.html  ← ONE iframe per device
+│        │                      (never re-attached when switching
+│        │                       tabs or layouts)
 │        │ WebUSB — ADB over USB
 │        ▼
-└─ Điện thoại Android ── adbd ⇄ scrcpy-server 3.3.3
+└─ Android phone ── adbd ⇄ scrcpy-server 3.3.3
 ```
 
-Mỗi phiên kết nối là một iframe riêng, nhờ đó **nhiều điện thoại chạy song song** mà không rớt kết nối khi chuyển đổi bố cục — Flutter chỉ điều khiển layout qua CSS class trên container dùng chung.
+Each session is an independent iframe, so **multiple phones run in parallel** without dropping connections when layouts change — Flutter only controls layout through CSS classes on a shared container.
 
 <details>
-<summary><b>Cấu trúc dự án</b></summary>
+<summary><b>Project structure</b></summary>
 
 ```
 lib/
 ├── main.dart                              # Entry point
-├── theme/app_theme.dart                   # Token thiết kế: màu, font, ThemeData
+├── theme/app_theme.dart                   # Design tokens: colors, fonts, ThemeData
 ├── models/
-│   ├── scrcpy_options.dart                # Model tùy chọn scrcpy
-│   └── scrcpy_state.dart                  # Enum trạng thái kết nối
+│   ├── scrcpy_options.dart                # scrcpy options model
+│   └── scrcpy_state.dart                  # Connection state enum
 ├── services/
-│   ├── scrcpy_service.dart                # Interface ScrcpySession + ScrcpyService
-│   ├── scrcpy_web_service.dart            # Web impl: nhiều phiên, mỗi phiên 1 iframe
-│   └── scrcpy_service_stub.dart           # Stub cho nền tảng khác web
+│   ├── scrcpy_service.dart                # ScrcpySession + ScrcpyService interfaces
+│   ├── scrcpy_web_service.dart            # Web impl: one iframe per session
+│   └── scrcpy_service_stub.dart           # Stub for non-web platforms
 ├── viewmodels/
-│   ├── scrcpy_sessions_view_model.dart    # Quản lý danh sách phiên (đa thiết bị)
+│   ├── scrcpy_sessions_view_model.dart    # Session list management (multi-device)
 │   └── theme_controller.dart              # Dark / Light mode
 └── widgets/
-    ├── scrcpy_web_widget.dart             # Shell: top bar + tab + stage + dock
-    ├── deck_widgets.dart                  # SignalDot, tab, chip trạng thái, brand
-    └── empty_state_hero.dart              # Trang rỗng hướng dẫn 3 bước
+    ├── scrcpy_web_widget.dart             # Shell: top bar + tabs + stage + dock
+    ├── deck_widgets.dart                  # SignalDot, tabs, status chip, brand
+    └── empty_state_hero.dart              # Empty state with a 3-step guide
 
 web/
 ├── index.html                             # HTML entry point
-├── scrcpy_frame.html                      # Logic WebUSB/scrcpy (JS) — mỗi iframe 1 phiên
+├── scrcpy_frame.html                      # WebUSB/scrcpy logic (JS) — one per iframe
 ├── fonts/                                 # Space Grotesk · Inter · JetBrains Mono
-├── vendor/scrcpy_bundle.js                # Bundle @yume-chan build bằng esbuild
-└── scrcpy-server.jar                      # Server scrcpy chạy trên điện thoại
+├── vendor/scrcpy_bundle.js                # Bundled @yume-chan (esbuild)
+└── scrcpy-server.jar                      # scrcpy server running on the phone
 
-tools/jsbundle/                            # Nguồn bundle vendor (npm + esbuild)
-assets/fonts/                              # Bản font dùng bởi Flutter (khớp web/fonts)
+tools/jsbundle/                            # Vendor bundle source (npm + esbuild)
+assets/fonts/                              # Fonts used by Flutter (matches web/fonts)
 ```
 
 </details>
 
 <details>
-<summary><b>Giao tiếp Flutter ↔ iframe</b></summary>
+<summary><b>Flutter ↔ iframe communication</b></summary>
 
-| Hướng | Kênh | Nội dung |
+| Direction | Channel | Payload |
 |---|---|---|
-| Flutter → iframe | `postMessage` vào `contentWindow` (targetOrigin = origin hiện tại) | `{type: "keyEvent", key}` · `{type: "disconnect"}` · `{type: "theme", mode}` |
-| iframe → Flutter | `window.parent.postMessage` (targetOrigin = origin hiện tại) | `{type: "scrcpyState", state}` |
+| Flutter → iframe | `postMessage` into `contentWindow` (targetOrigin = current origin) | `{type: "keyEvent", key}` · `{type: "disconnect"}` · `{type: "theme", mode}` |
+| iframe → Flutter | `window.parent.postMessage` (targetOrigin = current origin) | `{type: "scrcpyState", state}` |
 
-Các nút Back/Home/Apps ở dock chỉ tác động lên phiên của vùng tương ứng; bàn phím/chuột tác động lên iframe đang focus.
+The Back/Home/Apps buttons in the dock only affect the session of their own region; keyboard and mouse go to the focused iframe.
 
 </details>
 
-## Tham chiếu tùy chọn scrcpy
+## scrcpy options reference
 
-Tùy chỉnh trong **panel kết nối** trước khi bấm Kết nối; mọi thay đổi tự lưu vào `localStorage` (khóa `scrcpy_options`).
+Configure in the **connect panel** before pressing Connect; every change is saved to `localStorage` (key `scrcpy_options`).
 
-| Nhóm | Tùy chọn | Giá trị | Mặc định |
+| Group | Option | Values | Default |
 |---|---|---|---|
-| **Video** | Bật video | bật / tắt | bật |
-| | Độ phân giải | Mặc định · Theo thiết bị · Tùy chỉnh | Mặc định |
-| | Kích thước tùy chỉnh | Rộng × Cao (px) | 1080 × 1920 |
-| | Video bitrate | ví dụ `8 Mbps` | 8 Mbps |
+| **Video** | Enable video | on / off | on |
+| | Resolution | Default · Device · Custom | Default |
+| | Custom size | Width × Height (px) | 1080 × 1920 |
+| | Video bitrate | e.g. `8 Mbps` | 8 Mbps |
 | | Video codec | H.264 · H.265 · AV1 | H.264 |
-| | FPS tối đa | 0–120 (0 = không giới hạn) | Không giới hạn |
-| **Âm thanh** | Bật âm thanh | bật / tắt | bật |
+| | Max FPS | 0–120 (0 = unlimited) | Unlimited |
+| **Audio** | Enable audio | on / off | on |
 | | Audio codec | Opus · AAC · Raw | Opus |
-| | Audio bitrate | ví dụ `128 kbps` | 128 kbps |
-| | Nguồn âm thanh | Loa · Playback · Mic (không xử lý) · Mic (camcorder) · Mic (giao tiếp)… | Loa |
-| **Màn hình** | Điều khiển | chuột/bàn phím | bật |
-| | Clipboard sync | hai chiều máy ⇄ điện thoại | bật |
-| | Giữ màn hình sáng | ngăn điện thoại tắt màn khi kết nối | tắt |
-| | Hiển thị điểm chạm | tiện khi ghi màn hình | tắt |
-| | Xoay màn hình | 0° · 90° · 180° · 270° | 0° |
-| | Tắt màn hình điện thoại | điều khiển khi màn hình thật tắt | tắt |
-| **Camera** | Camera mirroring | hiển thị camera sau trên máy tính | tắt |
+| | Audio bitrate | e.g. `128 kbps` | 128 kbps |
+| | Audio source | Speaker output · Playback · Mic (unprocessed) · Mic (camcorder) · Mic (voice comm)… | Speaker output |
+| **Screen** | Control | mouse / keyboard | on |
+| | Clipboard sync | two-way computer ⇄ phone | on |
+| | Stay awake | keep the phone screen on while connected | off |
+| | Show touches | handy for screen recording | off |
+| | Rotation | 0° · 90° · 180° · 270° | 0° |
+| | Turn off phone screen | control while the physical screen is off | off |
+| **Camera** | Camera mirroring | show the rear camera on your computer | off |
 
-## Phát triển
+## Development
 
 ```bash
-# Chạy dev server
+# Dev server
 flutter run -d chrome
 
-# Build release cho web (kèm wasm dry-run)
+# Release build for web (includes wasm dry-run)
 flutter build web --release
 
-# Chạy tất cả tests
+# Run all tests
 flutter test
 
-# Phân tích tĩnh
+# Static analysis
 flutter analyze
 ```
 
 <details>
-<summary><b>Build lại bundle JavaScript vendor</b></summary>
+<summary><b>Rebuild the vendor JavaScript bundle</b></summary>
 
-Các thư viện JavaScript được **bundle cục bộ** thành một file duy nhất
-`web/vendor/scrcpy_bundle.js` (không phụ thuộc CDN lúc runtime):
+JavaScript libraries are **bundled locally** into a single file,
+`web/vendor/scrcpy_bundle.js` (no CDN dependency at runtime):
 
-| Package | Vai trò |
+| Package | Role |
 |---|---|
 | `@yume-chan/adb` | ADB over WebUSB |
-| `@yume-chan/adb-daemon-webusb` | Transport USB |
-| `@yume-chan/adb-credential-web` | Lưu credential ADB |
-| `@yume-chan/scrcpy` · `@yume-chan/adb-scrcpy` | Giao thức scrcpy |
-| `@yume-chan/scrcpy-decoder-webcodecs` | Giải mã video (WebCodecs/WebGL) |
+| `@yume-chan/adb-daemon-webusb` | USB transport |
+| `@yume-chan/adb-credential-web` | ADB credential store |
+| `@yume-chan/scrcpy` · `@yume-chan/adb-scrcpy` | scrcpy protocol |
+| `@yume-chan/scrcpy-decoder-webcodecs` | Video decoding (WebCodecs/WebGL) |
 
-Bundle được build bằng esbuild để **dedupe dependency** — mọi package chia sẻ chung
-một instance. Khi cần nâng cấp thư viện:
+The bundle is built with esbuild for **dependency deduplication** — every package
+shares one instance. To upgrade the libraries:
 
 ```bash
 cd tools/jsbundle
-# sửa version trong package.json nếu muốn
+# bump versions in package.json if needed
 npm install
 npm run build
 ```
@@ -214,86 +218,87 @@ npm run build
 </details>
 
 <details>
-<summary><b>Nâng cấp scrcpy-server</b></summary>
+<summary><b>Upgrading scrcpy-server</b></summary>
 
-File `web/scrcpy-server.jar` phải tương thích với cấu hình giao thức trong
+`web/scrcpy-server.jar` must match the protocol configuration in
 `web/scrcpy_frame.html`:
 
-| Thành phần | Phiên bản |
+| Component | Version |
 |---|---|
 | `scrcpy-server.jar` | **3.3.3** |
 | Options class | `AdbScrcpyOptions3_3_3` (`version: "3.3.3"`) |
 
-Nếu thay đổi server jar, hãy cập nhật class options tương ứng
-(`AdbScrcpyOptions2_x`, `AdbScrcpyOptions3_x`...) trong `scrcpy_frame.html`.
-Server jar tải về từ [scrcpy releases](https://github.com/Genymobile/scrcpy/releases).
+If you change the server jar, update the matching options class
+(`AdbScrcpyOptions2_x`, `AdbScrcpyOptions3_x`...) in `scrcpy_frame.html`.
+Download the server jar from [scrcpy releases](https://github.com/Genymobile/scrcpy/releases).
 
 </details>
 
-## Xử lý sự cố
+## Troubleshooting
 
 <details>
-<summary><b>"The device is already in use by another program" / kết nối lại không được</b></summary>
+<summary><b>"The device is already in use by another program" / can't reconnect</b></summary>
 
-Một tiến trình `adb.exe` (ADB server) trên máy tính — thường do **Android Studio**,
-**VS Code extension** hoặc **scrcpy desktop** tự khởi động — đang chiếm độc quyền
-giao diện USB của điện thoại, nên trình duyệt không thể chiếm.
+An `adb.exe` process (ADB server) on your computer — usually started by
+**Android Studio**, a **VS Code extension**, or **desktop scrcpy** — holds the
+phone's USB interface exclusively, so the browser can't claim it.
 
 ```bash
-# Nhả USB interface trên máy tính
+# Release the USB interface on your computer
 adb kill-server
 ```
 
-Hoặc đóng Android Studio / IDE đang chạy adb. Để hạn chế tái diễn:
+Or close Android Studio / any IDE running adb. To avoid recurrence:
 
-- Đóng các IDE trước khi dùng ứng dụng web
-- Tạo shortcut một cú bấm cho lệnh `adb kill-server` nếu hay cần
-- Gỡ `platform-tools` nếu không cần adb trên desktop
+- Close IDEs before using the web app
+- Create a one-click shortcut for `adb kill-server` if this happens often
+- Remove `platform-tools` if you don't need desktop adb
 
-Ứng dụng đã tự động xử lý: reset thiết bị USB trước khi kết nối, thử bắt tay ADB
-tối đa 3 lần, và phát hiện chính xác tình trạng bị chiếm USB để hiển thị hướng dẫn.
+The app already handles this automatically: it resets the USB device before
+connecting, retries the ADB handshake up to 3 times, and detects the
+"interface in use" condition to show guidance.
 
 </details>
 
 <details>
-<summary><b>Các lỗi thường gặp khác</b></summary>
+<summary><b>Other common issues</b></summary>
 
-| Hiện tượng | Nguyên nhân & cách xử lý |
+| Symptom | Cause & fix |
 |---|---|
-| Không thấy thiết bị trong hộp thoại chọn | Bật *Gỡ lỗi USB* trên điện thoại; dùng cáp hỗ trợ truyền dữ liệu |
-| Trang không mở được WebUSB | Phải chạy qua `https://` hoặc `localhost` (secure context) |
-| Timeout khi khởi động gương | Phiên bản `scrcpy-server.jar` phải khớp cấu hình giao thức — xem phần trên |
-| Không ghi được ảnh chụp vào clipboard | Trang cần đang được focus; nhấn lại nút sau khi click vào trang |
-| Không nghe được âm thanh | Thiết bị phải hỗ trợ; kiểm tra tùy chọn codec âm thanh (Opus/AAC) |
+| Device doesn't appear in the picker | Enable *USB debugging* on the phone; use a data-capable cable |
+| WebUSB unavailable | The page must be served over `https://` or `localhost` (secure context) |
+| Timeout when starting the mirror | `scrcpy-server.jar` version must match the protocol config — see above |
+| Screenshot not saved to clipboard | The page needs focus; click the page, then press the button again |
+| No audio | The device must support it; check the audio codec option (Opus/AAC) |
 
 </details>
 
-## Thiết kế giao diện
+## UI design
 
-Giao diện theo ngôn ngữ thiết kế **"Bàn điều khiển"**: nền graphite tối, accent
-xanh bạc hà chỉ dùng cho những gì đang *sống* (thiết bị đã kết nối, hành động
-chính), thông số kỹ thuật hiển thị bằng mono. Toàn bộ token nằm trong
+The interface follows a **"control deck"** design language: a dark graphite
+base, a mint accent reserved for things that are *alive* (connected devices,
+primary actions), and technical readouts set in a mono face. All tokens live in
 [`lib/theme/app_theme.dart`](lib/theme/app_theme.dart).
 
-| Token | Giá trị | Vai trò |
+| Token | Value | Role |
 |---|---|---|
-| Nền | `#0F1211` / `#161B19` | Nền trang / bề mặt khối |
-| Chữ | `#EAEEEB` / `#9BA59E` | Chính / phụ |
-| Accent | `#3FD68F` | Tín hiệu sống: kết nối, nút chính |
-| Cảnh báo | `#E8B44A` · `#F0716C` | Đang kết nối · Lỗi |
-| Hiển thị | Space Grotesk | Wordmark, tiêu đề |
-| Thân bài | Inter | Label, nội dung |
-| Kỹ thuật | JetBrains Mono | Trạng thái, thông số, nhãn mục |
+| Background | `#0F1211` / `#161B19` | Page / surface |
+| Text | `#EAEEEB` / `#9BA59E` | Primary / secondary |
+| Accent | `#3FD68F` | Live signal: connected, primary actions |
+| Warning | `#E8B44A` · `#F0716C` | Connecting · Error |
+| Display | Space Grotesk | Wordmark, headings |
+| Body | Inter | Labels, content |
+| Technical | JetBrains Mono | Status, readouts, section labels |
 
-Motif nhận diện: **signal dot** — chấm trạng thái phát sáng lặp ở tab thiết bị,
-chip trạng thái và dock; nhịp pulse khi đang kết nối (tự tắt khi hệ điều hành
-bật giảm chuyển động).
+Signature motif: the **signal dot** — a glowing status dot repeated across
+device tabs, the status chip, and the dock; it pulses while connecting
+(animation disabled automatically when the OS prefers reduced motion).
 
-## Giấy phép
+## License
 
 [MIT](LICENSE)
 
 ## Credits
 
-- [scrcpy](https://github.com/Genymobile/scrcpy) — Dự án gốc
-- [ya-webadb (@yume-chan)](https://github.com/yume-chan/ya-webadb) — Thư viện WebUSB/scrcpy cho web
+- [scrcpy](https://github.com/Genymobile/scrcpy) — The original project
+- [ya-webadb (@yume-chan)](https://github.com/yume-chan/ya-webadb) — WebUSB/scrcpy library for the web
