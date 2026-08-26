@@ -156,7 +156,7 @@ Tùy chỉnh trong **panel kết nối** trước khi bấm Kết nối; mọi t
 | Nhóm | Tùy chọn | Giá trị | Mặc định |
 |---|---|---|---|
 | **Video** | Bật video | bật / tắt | bật |
-| | Độ phân giải | Mặc định · Theo thiết bị · Tùy chỉnh | Mặc định |
+| | Độ phân giải | Mặc định (1600) · Theo thiết bị (gốc) · Tùy chỉnh | Mặc định (1600) |
 | | Kích thước tùy chỉnh | Rộng × Cao (px) | 1080 × 1920 |
 | | Video bitrate | ví dụ `8 Mbps` | 8 Mbps |
 | | Video codec | H.264 · H.265 · AV1 | H.264 |

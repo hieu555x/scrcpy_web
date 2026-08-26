@@ -158,7 +158,7 @@ Configure in the **connect panel** before pressing Connect; every change is save
 | Group | Option | Values | Default |
 |---|---|---|---|
 | **Video** | Enable video | on / off | on |
-| | Resolution | Default · Device · Custom | Default |
+| | Resolution | Default (1600) · Device (native) · Custom | Default (1600) |
 | | Custom size | Width × Height (px) | 1080 × 1920 |
 | | Video bitrate | e.g. `8 Mbps` | 8 Mbps |
 | | Video codec | H.264 · H.265 · AV1 | H.264 |

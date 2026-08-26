@@ -404,8 +404,8 @@
                 <div class="option-label">Độ phân giải</div>
               </div>
               <select id="opt-resolution" class="mini-select">
-                <option value="default">Mặc định</option>
-                <option value="original">Theo thiết bị</option>
+                <option value="default">Mặc định (1600)</option>
+                <option value="original">Theo thiết bị (gốc)</option>
                 <option value="custom">Tùy chỉnh</option>
               </select>
             </div>
@@ -901,13 +901,26 @@
 
           setStatus("Đang khởi động gương: 3/5 - Thiết lập cấu hình...");
           const userOpts = loadOptions();
+          // Giới hạn cạnh dài của luồng video qua maxSize của scrcpy.
+  // Mặc định 1600 (cân bằng độ trễ/chất lượng), "Theo thiết bị" giữ nguyên bản,
+  // Tùy chỉnh lấy cạnh dài người dùng nhập. Độ phân giải thấp hơn = encode +
+  // truyền USB + decode nhanh hơn đáng kể khi chơi game.
+          let maxSize = 1600;
+          if (userOpts.resolution === "original") {
+            maxSize = 0;
+          } else if (userOpts.resolution === "custom") {
+            const w = parseInt(userOpts.customWidth) || 0;
+            const h = parseInt(userOpts.customHeight) || 0;
+            maxSize = Math.max(w, h);
+          }
           const adbOptions = new AdbScrcpyOptions3_3_3(
             {
               tunnelForward: true,
               sendFrameMeta: userOpts.sendFrameMeta !== false,
               control: userOpts.control !== false,
               video: userOpts.video !== false,
-              audio: userOpts.audio !== false,
+              // Giới hạn kích thước video (cạnh dài)
+              maxSize: maxSize,
               // Video bitrate
               bitRate: userOpts.videoBitRate || 8_000_000,
               // Video codec
