@@ -45,6 +45,11 @@ class ScrcpyWebSession implements ScrcpySession {
     _postToFrame({'type': 'theme', 'mode': mode});
   }
 
+  @override
+  void setMuted(bool muted) {
+    _postToFrame({'type': 'setMuted', 'muted': muted});
+  }
+
   void _postToFrame(Map<String, Object> message) {
     final web.Window? frameWindow = iframe.contentWindow;
     if (frameWindow == null) return;
@@ -107,13 +112,16 @@ class ScrcpyWebService implements ScrcpyService {
   void Function(ScrcpySession session, ScrcpyState state)? onStateChanged;
 
   @override
+  void Function(ScrcpySession session, bool muted)? onMuteStateChanged;
+
+  @override
   ScrcpySession createSession({ScrcpyOptions? options}) {
     _ensureRegistered();
     final id = 'device-${_nextId++}';
     final viewType = 'scrcpy-view-$id';
 
     final iframe = web.HTMLIFrameElement()
-      ..src = 'scrcpy_frame.html'
+      ..src = 'scrcpy_frame.html?sessionId=$id'
       ..className = 'scrcpy-frame'
       ..setAttribute('allow', 'usb; clipboard-write; clipboard-read');
 
@@ -180,7 +188,15 @@ class ScrcpyWebService implements ScrcpyService {
 
     final Object? data = event.data.dartify();
     if (data is! Map<Object?, Object?>) return;
-    if (data['type'] != 'scrcpyState') return;
+    final type = data['type'] as String?;
+
+    if (type == 'mutedState') {
+      final muted = data['muted'] as bool? ?? false;
+      onMuteStateChanged?.call(owner, muted);
+      return;
+    }
+
+    if (type != 'scrcpyState') return;
 
     final state = switch (data['state']) {
       'connecting' => ScrcpyState.connecting,

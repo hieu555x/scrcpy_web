@@ -27,6 +27,9 @@ class _StubSession implements ScrcpySession {
 
   @override
   void setTheme(String mode) {}
+
+  @override
+  void setMuted(bool muted) {}
 }
 
 /// Implementation rỗng cho các nền tảng không phải web.
@@ -45,6 +48,9 @@ class ScrcpyServiceStub implements ScrcpyService {
 
   @override
   void markActive(ScrcpySession session) {}
+
+  @override
+  void Function(ScrcpySession session, bool muted)? onMuteStateChanged;
 }
 
 ScrcpyService get scrcpyService => ScrcpyServiceStub();

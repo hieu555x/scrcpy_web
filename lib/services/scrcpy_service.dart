@@ -24,12 +24,18 @@ abstract class ScrcpySession {
 
   /// Áp dụng chế độ sáng/tối cho iframe ('dark' | 'light').
   void setTheme(String mode);
+
+  /// Bật/tắt tiếng cho thiết bị này.
+  void setMuted(bool muted);
 }
 
 /// Quản lý nhiều phiên kết nối cùng lúc.
 abstract class ScrcpyService {
   /// Được gọi khi bất kỳ phiên nào báo thay đổi trạng thái.
   void Function(ScrcpySession session, ScrcpyState state)? onStateChanged;
+
+  /// Được gọi khi trạng thái mute của phiên thay đổi (từ iframe sync).
+  void Function(ScrcpySession session, bool muted)? onMuteStateChanged;
 
   /// Tạo một phiên mới (iframe + platform view riêng cho thiết bị mới).
   /// [options] là cấu hình scrcpy do người dùng chọn.

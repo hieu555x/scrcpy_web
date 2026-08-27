@@ -23,11 +23,20 @@ class ScrcpyWebWidget extends StatefulWidget {
 
 class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
   late final ScrcpySessionsViewModel _viewModel;
+  final Map<String, bool> _muteStates = {};
 
   @override
   void initState() {
     super.initState();
     _viewModel = ScrcpySessionsViewModel(scrcpyService);
+    // Lắng nghe mute state sync từ iframe (khôi phục sau F5/reconnect)
+    scrcpyService.onMuteStateChanged = (session, muted) {
+      if (mounted) {
+        setState(() {
+          _muteStates[session.id] = muted;
+        });
+      }
+    };
   }
 
   @override
@@ -37,6 +46,19 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
   }
 
   bool get _isDark => widget.themeController.isDark;
+
+  void _toggleMute(String sessionId) {
+    if (!kIsWeb) return;
+    final session = _viewModel.sessions.firstWhere(
+      (s) => s.id == sessionId,
+      orElse: () => null as ScrcpySession,
+    );
+    if (session == null) return;
+    final newMuteState = !(_muteStates[sessionId] ?? false);
+    _muteStates[sessionId] = newMuteState;
+    session.setMuted(newMuteState);
+    setState(() {});
+  }
 
   String get _currentThemeMode => _isDark ? 'dark' : 'light';
 
@@ -241,7 +263,7 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
             children: [
               for (final session in _viewModel.sessions)
                 Expanded(child: _sessionControls(session)),
-            ],
+          ],
           ),
         ),
         // Gợi ý phím tắt - chỉ hiển thị khi đủ chỗ (một thiết bị).
@@ -274,6 +296,7 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
 
   /// Nhóm điều khiển của một vùng màn hình, chia đều theo cột phía trên.
   Widget _sessionControls(ScrcpySession session) {
+    final isMuted = _muteStates[session.id] ?? false;
     return ValueListenableBuilder<ScrcpyState>(
       valueListenable: session.state,
       builder: (context, state, _) {
@@ -302,6 +325,15 @@ class _ScrcpyWebWidgetState extends State<ScrcpyWebWidget> {
                     icon: Icons.apps,
                     tooltip: 'Mở danh sách ứng dụng',
                     onTap: () => session.sendKeyEvent('apps'),
+                  ),
+                  _NavButton(
+                    icon: _muteStates[session.id] == true
+                        ? Icons.volume_off_rounded
+                        : Icons.volume_up_rounded,
+                    tooltip: _muteStates[session.id] == true
+                        ? 'Bật tiếng'
+                        : 'Tắt tiếng',
+                    onTap: () => _toggleMute(session.id),
                   ),
                   const SizedBox(width: 6),
                   _NavButton(

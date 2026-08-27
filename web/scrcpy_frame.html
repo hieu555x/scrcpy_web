@@ -631,9 +631,20 @@
       let videoWidth = 0;
       let videoHeight = 0;
 
+      // Lấy sessionId từ URL (?sessionId=...) để tách biệt localStorage cho mỗi thiết bị.
+      const urlParams = new URLSearchParams(window.location.search);
+      const sessionId = urlParams.get("sessionId") || "default";
+
+      // Khóa localStorage riêng cho mỗi thiết bị.
+      const storageKeys = {
+        theme: "scrcpy_theme",
+        options: "scrcpy_options",
+        muted: "scrcpy_muted_$sessionId",
+      };
+
       // Áp dụng theme đã lưu (dùng chung khóa 'scrcpy_theme' với Flutter).
       try {
-        if ((localStorage.getItem("scrcpy_theme") || "") === "light") {
+        if ((localStorage.getItem(storageKeys.theme) || "") === "light") {
           document.body.classList.add("light");
         }
       } catch (_) {}
@@ -1054,6 +1065,17 @@
           setupControls();
           postState("connected");
 
+          // Đồng bộ trạng thái mute về Flutter ngay sau khi kết nối
+          try {
+            const savedMuted = localStorage.getItem(storageKeys.muted) === "true";
+            if (window.parent !== window) {
+              window.parent.postMessage(
+                { type: "mutedState", muted: savedMuted },
+                window.location.origin,
+              );
+            }
+          } catch (_) {}
+
           // Nhận focus ngay sau khi kết nối để bàn phím tác động đúng thiết bị này
           videoCanvas.focus({ preventScroll: true });
 
@@ -1091,7 +1113,21 @@
         isCleaningUp = true;
         const client = scrcpyClient;
         scrcpyClient = null;
-        videoDecoder = null;
+videoDecoder = null;
+        // Dọn dẹp audio
+        if (audioDecoder) {
+          audioDecoder.close();
+          audioDecoder = null;
+        }
+        if (audioGainNode) {
+          audioGainNode.disconnect();
+          audioGainNode = null;
+        }
+        if (audioContext) {
+          audioContext.close().catch(() => {});
+          audioContext = null;
+        }
+        nextAudioTime = 0;
 
         // Reset UI trước để không kẹt người dùng
         canvasContainer.style.display = "none";
@@ -1318,12 +1354,23 @@
 
       // 6. Âm thanh: giải mã bằng WebCodecs native + phát qua AudioContext.
       let audioContext = null;
+      let audioGainNode = null;
       let audioDecoder = null;
       let nextAudioTime = 0;
 
       function ensureAudioContext() {
         if (!audioContext) {
           audioContext = new AudioContext();
+          // GainNode để điều khiển âm lượng / tắt tiếng
+          audioGainNode = audioContext.createGain();
+          audioGainNode.connect(audioContext.destination);
+          // Khôi phục trạng thái mute từ localStorage (riêng cho từng thiết bị)
+          try {
+            const saved = localStorage.getItem(storageKeys.muted);
+            if (saved === "true") {
+              audioGainNode.gain.value = 0;
+            }
+          } catch (_) {}
         }
         if (audioContext.state === "suspended") {
           audioContext.resume().catch(() => {});
@@ -1346,7 +1393,8 @@
           }
           const source = ctx.createBufferSource();
           source.buffer = buffer;
-          source.connect(ctx.destination);
+          // Kết nối qua GainNode để có thể tắt tiếng
+          source.connect(audioGainNode);
           const now = ctx.currentTime;
           if (nextAudioTime < now + 0.05) nextAudioTime = now + 0.05;
           source.start(nextAudioTime);
@@ -1592,6 +1640,27 @@
         }
       });
 
+      btnScreenshot.addEventListener("click", async () => {
+        if (!scrcpyClient || !videoWidth || !videoHeight) return;
+        btnScreenshot.disabled = true;
+        try {
+          const blob = await new Promise((resolve, reject) =>
+            videoCanvas.toBlob(
+              (b) =>
+                b ? resolve(b) : reject(new Error("Không tạo được ảnh từ khung hình")),
+              "image/png",
+            ),
+          );
+          await navigator.clipboard.write([
+            new ClipboardItem({ "image/png": blob }),
+          ]);
+          showButtonFeedback(btnScreenshot, "✓ Đã chép vào clipboard");
+        } catch (e) {
+          console.error("Lỗi chụp màn hình:", e);
+          showButtonFeedback(btnScreenshot, "✕ Lỗi chụp màn hình");
+        }
+      });
+
       // 5. Nhận sự kiện từ Flutter (phím điều hướng, ngắt kết nối).
       //    Đăng ký MỘT lần duy nhất ở mức top-level, có kiểm tra nguồn gốc.
       window.addEventListener("message", async (event) => {
@@ -1614,6 +1683,14 @@
           try {
             localStorage.setItem("scrcpy_theme", data.mode);
           } catch (_) {}
+        } else if (data.type === "setMuted") {
+          if (audioGainNode) {
+            const muted = !!data.muted;
+            audioGainNode.gain.value = muted ? 0 : 1;
+            try {
+              localStorage.setItem(storageKeys.muted, muted.toString());
+            } catch (_) {}
+          }
         }
       });
     </script>
