@@ -13,6 +13,7 @@ export {
   DefaultServerPath,
   ScrcpyAudioCodec,
   ScrcpyPointerId,
+  ScrcpyNewDisplay as NewDisplay,
 } from "@yume-chan/scrcpy";
 export { AdbScrcpyClient, AdbScrcpyOptions3_3_3 } from "@yume-chan/adb-scrcpy";
 export {
